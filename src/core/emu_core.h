@@ -5,6 +5,7 @@
 #include "core/config.h"
 #include "core/cpu.h"
 #include "core/memory_map.h"
+#include "core/mmio.h"
 #include "core/scheduler.h"
 #include "plugins/plugin_host.h"
 
@@ -24,6 +25,8 @@ public:
   bool bios_is_hle() const;
 
 private:
+  void flush_gpu_commands();
+
   bool load_and_apply_config(const std::string &config_path);
   CpuCore::Mode resolve_cpu_mode() const;
 
@@ -31,6 +34,7 @@ private:
   Config config_;
   BiosImage bios_;
   MemoryMap memory_;
+  MmioBus mmio_;
   Scheduler scheduler_;
   CpuCore cpu_;
 };

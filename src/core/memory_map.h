@@ -2,6 +2,7 @@
 #define PS1EMU_MEMORY_MAP_H
 
 #include "core/bios.h"
+#include "core/mmio.h"
 
 #include <array>
 #include <cstdint>
@@ -15,6 +16,8 @@ public:
 
   void reset();
   void load_bios(const BiosImage &bios);
+  void attach_mmio(MmioBus &mmio);
+  bool irq_pending() const;
 
   uint8_t read8(uint32_t addr) const;
   uint16_t read16(uint32_t addr) const;
@@ -30,6 +33,7 @@ private:
   std::array<uint8_t, kRamSize> ram_ {};
   std::array<uint8_t, kScratchpadSize> scratchpad_ {};
   const BiosImage *bios_ = nullptr;
+  MmioBus *mmio_ = nullptr;
 };
 
 } // namespace ps1emu

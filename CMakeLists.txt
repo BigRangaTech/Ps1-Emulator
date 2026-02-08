@@ -17,6 +17,7 @@ add_library(ps1emu_core
   src/core/emu_core.cpp
   src/core/gpu_commands.cpp
   src/core/memory_map.cpp
+  src/core/mmio.cpp
   src/core/scheduler.cpp
   src/plugins/ipc.cpp
   src/plugins/plugin_host.cpp

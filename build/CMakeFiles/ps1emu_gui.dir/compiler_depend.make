@@ -3,6 +3,7 @@
 
 CMakeFiles/ps1emu_gui.dir/src/ui/gui_app.cpp.o: /home/jessie/Documents/Ps1-Emulator/src/ui/gui_app.cpp \
   /home/jessie/Documents/Ps1-Emulator/include/ps1emu/sandbox.h \
+  /home/jessie/Documents/Ps1-Emulator/src/core/app_paths.h \
   /home/jessie/Documents/Ps1-Emulator/src/core/bios.h \
   /home/jessie/Documents/Ps1-Emulator/src/core/config.h \
   /home/jessie/Documents/Ps1-Emulator/src/core/cpu.h \
@@ -10,6 +11,7 @@ CMakeFiles/ps1emu_gui.dir/src/ui/gui_app.cpp.o: /home/jessie/Documents/Ps1-Emula
   /home/jessie/Documents/Ps1-Emulator/src/core/dynarec.h \
   /home/jessie/Documents/Ps1-Emulator/src/core/emu_core.h \
   /home/jessie/Documents/Ps1-Emulator/src/core/memory_map.h \
+  /home/jessie/Documents/Ps1-Emulator/src/core/mmio.h \
   /home/jessie/Documents/Ps1-Emulator/src/core/scheduler.h \
   /home/jessie/Documents/Ps1-Emulator/src/plugins/ipc.h \
   /home/jessie/Documents/Ps1-Emulator/src/plugins/plugin_host.h \
@@ -485,6 +487,7 @@ CMakeFiles/ps1emu_gui.dir/src/ui/gui_main.cpp.o: /home/jessie/Documents/Ps1-Emul
   /home/jessie/Documents/Ps1-Emulator/src/core/dynarec.h \
   /home/jessie/Documents/Ps1-Emulator/src/core/emu_core.h \
   /home/jessie/Documents/Ps1-Emulator/src/core/memory_map.h \
+  /home/jessie/Documents/Ps1-Emulator/src/core/mmio.h \
   /home/jessie/Documents/Ps1-Emulator/src/core/scheduler.h \
   /home/jessie/Documents/Ps1-Emulator/src/plugins/ipc.h \
   /home/jessie/Documents/Ps1-Emulator/src/plugins/plugin_host.h \
@@ -1226,9 +1229,9 @@ CMakeFiles/ps1emu_gui.dir/src/ui/gui_main.cpp.o:
 
 /lib/x86_64-linux-gnu/libbz2.so.1.0:
 
-/usr/include/strings.h:
+/lib/x86_64-linux-gnu/libbrotlidec.so.1:
 
-/usr/include/c++/15/bits/exception.h:
+/lib/x86_64-linux-gnu/libbrotlicommon.so.1:
 
 /usr/include/linux/stddef.h:
 
@@ -1277,6 +1280,10 @@ CMakeFiles/ps1emu_gui.dir/src/ui/gui_main.cpp.o:
 /usr/include/c++/15/ctime:
 
 /usr/include/c++/15/pstl/execution_defs.h:
+
+/usr/include/c++/15/bits/exception.h:
+
+/usr/include/strings.h:
 
 /usr/include/c++/15/new:
 
@@ -1442,6 +1449,18 @@ CMakeFiles/ps1emu_gui.dir/src/ui/gui_main.cpp.o:
 
 /lib/i386-linux-gnu/libsystemd.so.0:
 
+/usr/include/c++/15/bits/stl_raw_storage_iter.h:
+
+/usr/include/c++/15/bits/ostream.h:
+
+/usr/lib/gcc/x86_64-linux-gnu/15/include/avx512ifmavlintrin.h:
+
+/usr/include/c++/15/pstl/glue_memory_defs.h:
+
+/usr/include/c++/15/bits/node_handle.h:
+
+/lib/i386-linux-gnu/libmp3lame.so.0:
+
 /usr/include/SDL2/SDL_system.h:
 
 /usr/include/c++/15/vector:
@@ -1502,8 +1521,6 @@ CMakeFiles/ps1emu_gui.dir/src/ui/gui_main.cpp.o:
 
 /usr/include/SDL2/SDL_platform.h:
 
-/usr/include/SDL2/SDL_filesystem.h:
-
 /usr/include/c++/15/tr1/ell_integral.tcc:
 
 /usr/include/stdc-predef.h:
@@ -1548,10 +1565,6 @@ CMakeFiles/ps1emu_gui.dir/src/ui/gui_main.cpp.o:
 
 /usr/include/x86_64-linux-gnu/c++/15/bits/ctype_base.h:
 
-/lib/x86_64-linux-gnu/libbrotlidec.so.1:
-
-/usr/include/x86_64-linux-gnu/c++/15/bits/gthr.h:
-
 /usr/include/c++/15/bits/stl_iterator_base_types.h:
 
 /home/jessie/Documents/Ps1-Emulator/src/core/scheduler.h:
@@ -1584,59 +1597,13 @@ CMakeFiles/ps1emu_gui.dir/src/ui/gui_main.cpp.o:
 
 /home/jessie/Documents/Ps1-Emulator/src/core/memory_map.h:
 
-/usr/include/x86_64-linux-gnu/c++/15/bits/cpu_defines.h:
+/usr/include/SDL2/SDL_haptic.h:
 
-/home/jessie/Documents/Ps1-Emulator/src/core/dynarec.h:
+/usr/lib/gcc/x86_64-linux-gnu/15/include/amxfp8intrin.h:
 
-/usr/include/c++/15/bits/functional_hash.h:
+/usr/include/SDL2/SDL_filesystem.h:
 
-/usr/include/c++/15/ratio:
-
-/home/jessie/Documents/Ps1-Emulator/src/core/cpu_state.h:
-
-/lib/i386-linux-gnu/libX11-xcb.so.1:
-
-/usr/include/c++/15/ext/atomicity.h:
-
-/usr/include/c++/15/ext/concurrence.h:
-
-/usr/include/c++/15/bits/exception_ptr.h:
-
-/usr/lib/i386-linux-gnu/libXdmcp.so.6:
-
-/usr/lib/gcc/x86_64-linux-gnu/15/include/keylockerintrin.h:
-
-/usr/include/SDL2/SDL_events.h:
-
-/usr/include/SDL2/SDL_power.h:
-
-/usr/lib/i386-linux-gnu/libbrotlicommon.so.1:
-
-/usr/include/x86_64-linux-gnu/c++/15/bits/ctype_inline.h:
-
-/lib/x86_64-linux-gnu/libvorbis.so.0:
-
-/usr/include/stdio.h:
-
-/home/jessie/Documents/Ps1-Emulator/src/plugins/plugin_host.h:
-
-/usr/include/x86_64-linux-gnu/c++/15/bits/gthr-default.h:
-
-/usr/include/SDL2/SDL_mouse.h:
-
-/home/jessie/Documents/Ps1-Emulator/include/ps1emu/sandbox.h:
-
-/usr/lib/i386-linux-gnu/libXrandr.so.2:
-
-/usr/include/SDL2/SDL_config.h:
-
-/usr/include/c++/15/bits/locale_facets_nonio.h:
-
-/usr/include/x86_64-linux-gnu/c++/15/bits/atomic_word.h:
-
-/usr/include/x86_64-linux-gnu/bits/time64.h:
-
-/usr/include/c++/15/ext/aligned_buffer.h:
+/home/jessie/Documents/Ps1-Emulator/src/core/mmio.h:
 
 /usr/include/c++/15/pstl/pstl_config.h:
 
@@ -1656,17 +1623,75 @@ CMakeFiles/ps1emu_gui.dir/src/ui/gui_main.cpp.o:
 
 /usr/include/x86_64-linux-gnu/asm/posix_types.h:
 
+/usr/include/c++/15/ext/atomicity.h:
+
+/usr/include/c++/15/ext/concurrence.h:
+
+/usr/include/c++/15/bits/exception_ptr.h:
+
+/usr/lib/i386-linux-gnu/libXdmcp.so.6:
+
+/usr/lib/gcc/x86_64-linux-gnu/15/include/keylockerintrin.h:
+
+/usr/include/SDL2/SDL_events.h:
+
+/usr/include/SDL2/SDL_power.h:
+
+/usr/lib/i386-linux-gnu/libbrotlicommon.so.1:
+
+/usr/include/x86_64-linux-gnu/c++/15/bits/ctype_inline.h:
+
+/usr/include/x86_64-linux-gnu/c++/15/bits/cpu_defines.h:
+
+/home/jessie/Documents/Ps1-Emulator/src/core/dynarec.h:
+
+/usr/include/c++/15/bits/functional_hash.h:
+
+/usr/include/c++/15/ratio:
+
+/home/jessie/Documents/Ps1-Emulator/src/core/cpu_state.h:
+
+/usr/include/c++/15/ext/aligned_buffer.h:
+
+/usr/include/x86_64-linux-gnu/bits/time64.h:
+
+/lib/i386-linux-gnu/libX11-xcb.so.1:
+
+/usr/include/c++/15/bits/predefined_ops.h:
+
+/home/jessie/Documents/Ps1-Emulator/include/ps1emu/sandbox.h:
+
+/usr/lib/i386-linux-gnu/libXrandr.so.2:
+
+/usr/include/SDL2/SDL_config.h:
+
+/usr/include/c++/15/bits/locale_facets_nonio.h:
+
+/usr/include/x86_64-linux-gnu/c++/15/bits/atomic_word.h:
+
+/lib/x86_64-linux-gnu/libvorbis.so.0:
+
+/usr/include/stdio.h:
+
+/home/jessie/Documents/Ps1-Emulator/src/plugins/plugin_host.h:
+
+/usr/include/x86_64-linux-gnu/c++/15/bits/gthr-default.h:
+
+/usr/include/SDL2/SDL_mouse.h:
+
+/usr/include/x86_64-linux-gnu/c++/15/bits/gthr.h:
+
 /usr/include/SDL2/SDL_gamecontroller.h:
 
 /usr/include/x86_64-linux-gnu/bits/types/timer_t.h:
+
+/home/jessie/Documents/Ps1-Emulator/src/core/cpu.h:
 
 /home/jessie/Documents/Ps1-Emulator/src/ui/gui_app.h:
 
 /lib/x86_64-linux-gnu/libdecor-0.so.0:
 
 /usr/lib/gcc/x86_64-linux-gnu/15/include/avx10_2-512minmaxintrin.h:
-
-/home/jessie/Documents/Ps1-Emulator/src/core/cpu.h:
 
 /usr/include/SDL2/SDL_sensor.h:
 
@@ -1690,10 +1715,6 @@ CMakeFiles/ps1emu_gui.dir/src/ui/gui_main.cpp.o:
 
 /usr/lib/gcc/x86_64-linux-gnu/15/include/avxintrin.h:
 
-/usr/include/SDL2/SDL_haptic.h:
-
-/usr/lib/gcc/x86_64-linux-gnu/15/include/amxfp8intrin.h:
-
 /usr/include/SDL2/SDL_rect.h:
 
 /usr/lib/gcc/x86_64-linux-gnu/15/include/clzerointrin.h:
@@ -1708,6 +1729,8 @@ CMakeFiles/ps1emu_gui.dir/src/ui/gui_main.cpp.o:
 
 /home/jessie/Documents/Ps1-Emulator/src/ui/gui_app.cpp:
 
+/home/jessie/Documents/Ps1-Emulator/src/core/app_paths.h:
+
 /usr/include/SDL2/SDL_error.h:
 
 /usr/include/c++/15/bits/version.h:
@@ -1717,6 +1740,10 @@ CMakeFiles/ps1emu_gui.dir/src/ui/gui_main.cpp.o:
 /usr/lib/gcc/x86_64-linux-gnu/15/include/bmi2intrin.h:
 
 /usr/include/c++/15/bits/localefwd.h:
+
+/usr/include/c++/15/bits/fs_ops.h:
+
+/home/jessie/Documents/Ps1-Emulator/src/core/config.h:
 
 libps1emu_core.a:
 
@@ -1752,11 +1779,11 @@ libps1emu_core.a:
 
 /usr/include/x86_64-linux-gnu/bits/math-vector.h:
 
+/usr/include/x86_64-linux-gnu/c++/15/bits/c++locale.h:
+
+/usr/lib/gcc/x86_64-linux-gnu/15/include/avxvnniintrin.h:
+
 /lib/i386-linux-gnu/libpulse.so.0:
-
-/home/jessie/Documents/Ps1-Emulator/src/core/config.h:
-
-/usr/include/c++/15/bits/fs_ops.h:
 
 /usr/include/SDL2/SDL_hints.h:
 
@@ -1806,12 +1833,6 @@ libps1emu_core.a:
 
 /usr/lib/gcc/x86_64-linux-gnu/15/include/lwpintrin.h:
 
-/usr/include/c++/15/bits/stl_raw_storage_iter.h:
-
-/usr/include/c++/15/bits/ostream.h:
-
-/usr/lib/gcc/x86_64-linux-gnu/15/include/avx512ifmavlintrin.h:
-
 /usr/include/c++/15/bits/codecvt.h:
 
 /usr/lib/gcc/x86_64-linux-gnu/15/include/avx512vbmi2vlintrin.h:
@@ -1821,8 +1842,6 @@ libps1emu_core.a:
 /lib/i386-linux-gnu/libexpat.so.1:
 
 /usr/include/c++/15/initializer_list:
-
-/usr/include/c++/15/bits/predefined_ops.h:
 
 /usr/include/sched.h:
 
@@ -1877,16 +1896,6 @@ libps1emu_core.a:
 /usr/include/c++/15/bits/new_allocator.h:
 
 /usr/include/x86_64-linux-gnu/c++/15/bits/os_defines.h:
-
-/usr/include/c++/15/pstl/glue_memory_defs.h:
-
-/usr/lib/gcc/x86_64-linux-gnu/15/include/avxvnniintrin.h:
-
-/usr/include/x86_64-linux-gnu/c++/15/bits/c++locale.h:
-
-/usr/include/c++/15/bits/node_handle.h:
-
-/lib/i386-linux-gnu/libmp3lame.so.0:
 
 /usr/include/c++/15/tr1/hypergeometric.tcc:
 
@@ -2108,11 +2117,11 @@ CMakeFiles/ps1emu_gui.dir/src/ui/gui_app.cpp.o:
 
 /usr/lib/gcc/x86_64-linux-gnu/15/include/amxmovrsintrin.h:
 
-/usr/include/string.h:
-
 /usr/lib/gcc/x86_64-linux-gnu/15/include/amxint8intrin.h:
 
 /lib/x86_64-linux-gnu/libXss.so.1:
+
+/usr/include/string.h:
 
 /usr/lib/gcc/x86_64-linux-gnu/15/include/amxtileintrin.h:
 
@@ -2391,5 +2400,3 @@ CMakeFiles/ps1emu_gui.dir/src/ui/gui_app.cpp.o:
 /usr/include/SDL2/SDL_cpuinfo.h:
 
 /lib/x86_64-linux-gnu/libatomic.so.1:
-
-/lib/x86_64-linux-gnu/libbrotlicommon.so.1:

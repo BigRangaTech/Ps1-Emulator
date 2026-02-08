@@ -577,6 +577,30 @@ src/core/memory_map.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/ps1emu_core.dir/build.make CMakeFiles/ps1emu_core.dir/src/core/memory_map.cpp.s
 .PHONY : src/core/memory_map.cpp.s
 
+src/core/mmio.o: src/core/mmio.cpp.o
+.PHONY : src/core/mmio.o
+
+# target to build an object file
+src/core/mmio.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/ps1emu_core.dir/build.make CMakeFiles/ps1emu_core.dir/src/core/mmio.cpp.o
+.PHONY : src/core/mmio.cpp.o
+
+src/core/mmio.i: src/core/mmio.cpp.i
+.PHONY : src/core/mmio.i
+
+# target to preprocess a source file
+src/core/mmio.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/ps1emu_core.dir/build.make CMakeFiles/ps1emu_core.dir/src/core/mmio.cpp.i
+.PHONY : src/core/mmio.cpp.i
+
+src/core/mmio.s: src/core/mmio.cpp.s
+.PHONY : src/core/mmio.s
+
+# target to generate assembly for a file
+src/core/mmio.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/ps1emu_core.dir/build.make CMakeFiles/ps1emu_core.dir/src/core/mmio.cpp.s
+.PHONY : src/core/mmio.cpp.s
+
 src/core/scheduler.o: src/core/scheduler.cpp.o
 .PHONY : src/core/scheduler.o
 
@@ -828,6 +852,9 @@ help:
 	@echo "... src/core/memory_map.o"
 	@echo "... src/core/memory_map.i"
 	@echo "... src/core/memory_map.s"
+	@echo "... src/core/mmio.o"
+	@echo "... src/core/mmio.i"
+	@echo "... src/core/mmio.s"
 	@echo "... src/core/scheduler.o"
 	@echo "... src/core/scheduler.i"
 	@echo "... src/core/scheduler.s"

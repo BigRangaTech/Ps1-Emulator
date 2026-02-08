@@ -135,6 +135,7 @@ CMakeFiles/ps1emu_ui.dir/src/ui/main.cpp.o: \
  /home/jessie/Documents/Ps1-Emulator/src/core/cpu_state.h \
  /home/jessie/Documents/Ps1-Emulator/src/core/dynarec.h \
  /home/jessie/Documents/Ps1-Emulator/src/core/memory_map.h \
+ /home/jessie/Documents/Ps1-Emulator/src/core/mmio.h \
  /usr/include/c++/15/array /usr/include/c++/15/compare \
  /usr/include/c++/15/memory /usr/include/c++/15/bits/stl_tempbuf.h \
  /usr/include/c++/15/bits/stl_raw_storage_iter.h \
