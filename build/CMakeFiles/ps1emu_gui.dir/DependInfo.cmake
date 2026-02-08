@@ -10,6 +10,7 @@ set(CMAKE_DEPENDS_LANGUAGES
 set(CMAKE_DEPENDS_DEPENDENCY_FILES
   "/home/jessie/Documents/Ps1-Emulator/src/ui/gui_app.cpp" "CMakeFiles/ps1emu_gui.dir/src/ui/gui_app.cpp.o" "gcc" "CMakeFiles/ps1emu_gui.dir/src/ui/gui_app.cpp.o.d"
   "/home/jessie/Documents/Ps1-Emulator/src/ui/gui_main.cpp" "CMakeFiles/ps1emu_gui.dir/src/ui/gui_main.cpp.o" "gcc" "CMakeFiles/ps1emu_gui.dir/src/ui/gui_main.cpp.o.d"
+  "/home/jessie/Documents/Ps1-Emulator/src/ui/sdl_backend.cpp" "CMakeFiles/ps1emu_gui.dir/src/ui/sdl_backend.cpp.o" "gcc" "CMakeFiles/ps1emu_gui.dir/src/ui/sdl_backend.cpp.o.d"
   "" "ps1emu_gui" "gcc" "CMakeFiles/ps1emu_gui.dir/link.d"
   )
 

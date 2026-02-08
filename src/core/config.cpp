@@ -119,6 +119,10 @@ bool load_config_file(const std::string &path, Config &out, std::string &error) 
       out.plugin_cdrom = value;
       continue;
     }
+    if (key == "cdrom.image") {
+      out.cdrom_image = value;
+      continue;
+    }
     if (key == "cpu.mode") {
       CpuMode mode = CpuMode::Auto;
       if (!parse_cpu_mode(value, mode)) {

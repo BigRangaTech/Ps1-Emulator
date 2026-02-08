@@ -19,6 +19,7 @@ struct Config {
   std::string plugin_spu;
   std::string plugin_input;
   std::string plugin_cdrom;
+  std::string cdrom_image;
   CpuMode cpu_mode = CpuMode::Auto;
   SandboxOptions sandbox;
 };

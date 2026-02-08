@@ -4,6 +4,7 @@ ps1emu_gui: \
   /usr/lib/gcc/x86_64-linux-gnu/15/crtbeginS.o \
   CMakeFiles/ps1emu_gui.dir/src/ui/gui_app.cpp.o \
   CMakeFiles/ps1emu_gui.dir/src/ui/gui_main.cpp.o \
+  CMakeFiles/ps1emu_gui.dir/src/ui/sdl_backend.cpp.o \
   libps1emu_core.a \
   /usr/lib/gcc/x86_64-linux-gnu/15/../../../x86_64-linux-gnu/libSDL2.so \
   /usr/lib/gcc/x86_64-linux-gnu/15/../../../x86_64-linux-gnu/libSDL2_ttf.so \
@@ -193,6 +194,8 @@ ps1emu_gui: \
 CMakeFiles/ps1emu_gui.dir/src/ui/gui_app.cpp.o:
 
 CMakeFiles/ps1emu_gui.dir/src/ui/gui_main.cpp.o:
+
+CMakeFiles/ps1emu_gui.dir/src/ui/sdl_backend.cpp.o:
 
 libps1emu_core.a:
 

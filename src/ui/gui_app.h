@@ -36,6 +36,8 @@ private:
   void draw_session_view();
   void draw_bios_picker();
   void scan_bios_candidates();
+  void draw_cdrom_picker();
+  void scan_cdrom_candidates();
 
   bool draw_button(const SDL_Rect &rect, const std::string &label);
   void draw_label(const SDL_Rect &rect, const std::string &text);
@@ -71,6 +73,15 @@ private:
   bool bios_picker_open_ = false;
   std::vector<std::string> bios_candidates_;
   int bios_candidate_offset_ = 0;
+
+  bool cdrom_input_active_ = false;
+  bool cdrom_input_dirty_ = false;
+  SDL_Rect cdrom_input_rect_{0, 0, 0, 0};
+  std::string cdrom_input_;
+
+  bool cdrom_picker_open_ = false;
+  std::vector<std::string> cdrom_candidates_;
+  int cdrom_candidate_offset_ = 0;
 };
 
 } // namespace ps1emu

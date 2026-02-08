@@ -4,6 +4,7 @@
 CMakeFiles/ps1emu.dir/src/main.cpp.o: /home/jessie/Documents/Ps1-Emulator/src/main.cpp \
   /home/jessie/Documents/Ps1-Emulator/include/ps1emu/sandbox.h \
   /home/jessie/Documents/Ps1-Emulator/src/core/bios.h \
+  /home/jessie/Documents/Ps1-Emulator/src/core/cdrom_image.h \
   /home/jessie/Documents/Ps1-Emulator/src/core/config.h \
   /home/jessie/Documents/Ps1-Emulator/src/core/config_paths.h \
   /home/jessie/Documents/Ps1-Emulator/src/core/cpu.h \
@@ -38,6 +39,7 @@ CMakeFiles/ps1emu.dir/src/main.cpp.o: /home/jessie/Documents/Ps1-Emulator/src/ma
   /usr/include/c++/15/bits/basic_string.tcc \
   /usr/include/c++/15/bits/char_traits.h \
   /usr/include/c++/15/bits/charconv.h \
+  /usr/include/c++/15/bits/codecvt.h \
   /usr/include/c++/15/bits/concept_check.h \
   /usr/include/c++/15/bits/cpp_type_traits.h \
   /usr/include/c++/15/bits/cxxabi_forced.h \
@@ -47,6 +49,7 @@ CMakeFiles/ps1emu.dir/src/main.cpp.o: /home/jessie/Documents/Ps1-Emulator/src/ma
   /usr/include/c++/15/bits/exception.h \
   /usr/include/c++/15/bits/exception_defines.h \
   /usr/include/c++/15/bits/exception_ptr.h \
+  /usr/include/c++/15/bits/fstream.tcc \
   /usr/include/c++/15/bits/functexcept.h \
   /usr/include/c++/15/bits/functional_hash.h \
   /usr/include/c++/15/bits/hash_bytes.h \
@@ -123,6 +126,7 @@ CMakeFiles/ps1emu.dir/src/main.cpp.o: /home/jessie/Documents/Ps1-Emulator/src/ma
   /usr/include/c++/15/ext/numeric_traits.h \
   /usr/include/c++/15/ext/string_conversions.h \
   /usr/include/c++/15/ext/type_traits.h \
+  /usr/include/c++/15/fstream \
   /usr/include/c++/15/initializer_list \
   /usr/include/c++/15/ios \
   /usr/include/c++/15/iosfwd \
@@ -231,8 +235,10 @@ CMakeFiles/ps1emu.dir/src/main.cpp.o: /home/jessie/Documents/Ps1-Emulator/src/ma
   /usr/include/x86_64-linux-gnu/bits/wctype-wchar.h \
   /usr/include/x86_64-linux-gnu/bits/wordsize.h \
   /usr/include/x86_64-linux-gnu/c++/15/bits/atomic_word.h \
+  /usr/include/x86_64-linux-gnu/c++/15/bits/basic_file.h \
   /usr/include/x86_64-linux-gnu/c++/15/bits/c++allocator.h \
   /usr/include/x86_64-linux-gnu/c++/15/bits/c++config.h \
+  /usr/include/x86_64-linux-gnu/c++/15/bits/c++io.h \
   /usr/include/x86_64-linux-gnu/c++/15/bits/c++locale.h \
   /usr/include/x86_64-linux-gnu/c++/15/bits/cpu_defines.h \
   /usr/include/x86_64-linux-gnu/c++/15/bits/ctype_base.h \
@@ -277,7 +283,15 @@ CMakeFiles/ps1emu.dir/src/main.cpp.o:
 
 /usr/lib/x86_64-linux-gnu/libgcc_s.so.1:
 
-/usr/include/c++/15/ios:
+/usr/lib/x86_64-linux-gnu/libc.so:
+
+/usr/lib/x86_64-linux-gnu/crti.o:
+
+/usr/lib/x86_64-linux-gnu/Scrt1.o:
+
+/usr/lib/gcc/x86_64-linux-gnu/15/libstdc++.so:
+
+/lib64/ld-linux-x86-64.so.2:
 
 /usr/include/c++/15/ext/numeric_traits.h:
 
@@ -313,8 +327,6 @@ CMakeFiles/ps1emu.dir/src/main.cpp.o:
 
 /usr/include/c++/15/cerrno:
 
-/usr/lib/x86_64-linux-gnu/libc.so:
-
 /usr/include/x86_64-linux-gnu/bits/types.h:
 
 /usr/include/c++/15/bits/utility.h:
@@ -324,12 +336,6 @@ CMakeFiles/ps1emu.dir/src/main.cpp.o:
 /usr/include/c++/15/bits/streambuf_iterator.h:
 
 /usr/include/x86_64-linux-gnu/bits/types/__locale_t.h:
-
-/usr/include/c++/15/istream:
-
-/usr/include/c++/15/concepts:
-
-/usr/include/x86_64-linux-gnu/bits/types/__sigset_t.h:
 
 /usr/include/x86_64-linux-gnu/asm/errno.h:
 
@@ -381,15 +387,17 @@ libps1emu_core.a:
 
 /usr/include/x86_64-linux-gnu/bits/types/time_t.h:
 
-/usr/lib/gcc/x86_64-linux-gnu/15/libstdc++.so:
-
-/lib64/ld-linux-x86-64.so.2:
-
-/usr/include/c++/15/bits/memoryfwd.h:
-
 /usr/lib/x86_64-linux-gnu/libm.so:
 
 /usr/include/asm-generic/int-ll64.h:
+
+/usr/include/c++/15/bits/stl_function.h:
+
+/usr/include/c++/15/cwchar:
+
+/usr/include/c++/15/bits/locale_facets.tcc:
+
+/usr/include/ctype.h:
 
 /usr/include/c++/15/bits/exception_defines.h:
 
@@ -407,10 +415,6 @@ libps1emu_core.a:
 
 /usr/include/c++/15/exception:
 
-/usr/include/c++/15/cwchar:
-
-/usr/include/c++/15/bits/stl_function.h:
-
 /usr/include/x86_64-linux-gnu/bits/types/sigset_t.h:
 
 /usr/include/asm-generic/bitsperlong.h:
@@ -419,7 +423,15 @@ libps1emu_core.a:
 
 /usr/include/asm-generic/errno-base.h:
 
-/usr/include/c++/15/iosfwd:
+/usr/include/c++/15/bits/localefwd.h:
+
+/home/jessie/Documents/Ps1-Emulator/src/core/config_paths.h:
+
+/usr/include/c++/15/bits/stringfwd.h:
+
+/usr/include/c++/15/bits/erase_if.h:
+
+/usr/include/c++/15/bits/alloc_traits.h:
 
 /usr/include/c++/15/initializer_list:
 
@@ -443,6 +455,14 @@ libps1emu_core.a:
 
 /usr/include/pthread.h:
 
+/home/jessie/Documents/Ps1-Emulator/src/core/config.h:
+
+/usr/include/alloca.h:
+
+/usr/include/c++/15/bits/charconv.h:
+
+/usr/include/x86_64-linux-gnu/sys/types.h:
+
 /usr/include/c++/15/bits/align.h:
 
 /usr/include/x86_64-linux-gnu/bits/stdlib-float.h:
@@ -463,33 +483,13 @@ libps1emu_core.a:
 
 /usr/include/c++/15/vector:
 
-/usr/include/alloca.h:
-
-/home/jessie/Documents/Ps1-Emulator/src/core/config.h:
-
 /usr/include/c++/15/bits/ostream_insert.h:
 
 /usr/include/x86_64-linux-gnu/bits/errno.h:
 
 /home/jessie/Documents/Ps1-Emulator/include/ps1emu/sandbox.h:
 
-/usr/include/c++/15/bits/stl_iterator_base_types.h:
-
-/home/jessie/Documents/Ps1-Emulator/src/core/scheduler.h:
-
-/usr/include/x86_64-linux-gnu/sys/single_threaded.h:
-
-/usr/include/c++/15/bit:
-
-/usr/include/c++/15/bits/allocator.h:
-
-/usr/include/asm-generic/posix_types.h:
-
-/usr/include/stdc-predef.h:
-
-/usr/include/c++/15/bits/charconv.h:
-
-/usr/include/x86_64-linux-gnu/sys/types.h:
+/home/jessie/Documents/Ps1-Emulator/src/core/cdrom_image.h:
 
 /usr/include/c++/15/bits/memory_resource.h:
 
@@ -523,17 +523,25 @@ libps1emu_core.a:
 
 /usr/include/c++/15/ext/concurrence.h:
 
-/usr/lib/x86_64-linux-gnu/crti.o:
-
 /usr/include/x86_64-linux-gnu/bits/types/__FILE.h:
 
 /usr/include/c++/15/bits/postypes.h:
 
 /usr/include/x86_64-linux-gnu/asm/posix_types.h:
 
-/usr/include/c++/15/bits/locale_facets.tcc:
+/home/jessie/Documents/Ps1-Emulator/src/core/scheduler.h:
 
-/usr/include/ctype.h:
+/usr/include/c++/15/bits/stl_iterator_base_types.h:
+
+/usr/include/x86_64-linux-gnu/sys/single_threaded.h:
+
+/usr/include/stdc-predef.h:
+
+/usr/include/c++/15/bit:
+
+/usr/include/asm-generic/posix_types.h:
+
+/usr/include/c++/15/bits/allocator.h:
 
 /usr/include/c++/15/bits/atomic_base.h:
 
@@ -541,9 +549,9 @@ libps1emu_core.a:
 
 /usr/include/x86_64-linux-gnu/bits/wchar.h:
 
-/usr/include/c++/15/bits/vector.tcc:
+/usr/include/c++/15/fstream:
 
-/usr/include/c++/15/iostream:
+/usr/include/c++/15/bits/ostream.h:
 
 /usr/include/c++/15/bits/cxxabi_init_exception.h:
 
@@ -565,19 +573,11 @@ libps1emu_core.a:
 
 /usr/include/x86_64-linux-gnu/gnu/stubs-64.h:
 
-/usr/include/c++/15/bits/ostream.h:
-
-/usr/include/c++/15/bits/stringfwd.h:
-
-/usr/include/c++/15/bits/erase_if.h:
-
-/usr/include/c++/15/bits/alloc_traits.h:
-
-/home/jessie/Documents/Ps1-Emulator/src/core/config_paths.h:
-
 /usr/include/c++/15/bits/streambuf.tcc:
 
 /usr/include/c++/15/bits/basic_string.tcc:
+
+/usr/include/c++/15/bits/codecvt.h:
 
 /usr/include/c++/15/backward/binders.h:
 
@@ -591,6 +591,14 @@ libps1emu_core.a:
 
 /usr/include/c++/15/bits/cxxabi_forced.h:
 
+/usr/include/c++/15/bits/invoke.h:
+
+/usr/include/x86_64-linux-gnu/bits/pthread_stack_min-dynamic.h:
+
+/usr/include/c++/15/bits/memoryfwd.h:
+
+/usr/include/c++/15/bits/fstream.tcc:
+
 /usr/include/c++/15/bits/hash_bytes.h:
 
 /usr/include/c++/15/bits/locale_classes.tcc:
@@ -601,15 +609,23 @@ libps1emu_core.a:
 
 /usr/include/x86_64-linux-gnu/c++/15/bits/c++config.h:
 
-/usr/include/c++/15/bits/invoke.h:
-
-/usr/include/x86_64-linux-gnu/bits/pthread_stack_min-dynamic.h:
-
 /usr/include/c++/15/bits/ios_base.h:
 
 /usr/include/wchar.h:
 
-/usr/include/c++/15/bits/localefwd.h:
+/usr/include/c++/15/ios:
+
+/usr/include/c++/15/iosfwd:
+
+/usr/include/c++/15/bits/vector.tcc:
+
+/usr/include/c++/15/iostream:
+
+/usr/include/c++/15/istream:
+
+/usr/include/c++/15/concepts:
+
+/usr/include/x86_64-linux-gnu/bits/types/__sigset_t.h:
 
 /usr/include/linux/errno.h:
 
@@ -671,6 +687,10 @@ libps1emu_core.a:
 
 /usr/include/sched.h:
 
+/lib/x86_64-linux-gnu/libmvec.so.1:
+
+/usr/include/stdlib.h:
+
 /usr/include/x86_64-linux-gnu/bits/byteswap.h:
 
 /usr/include/x86_64-linux-gnu/asm/posix_types_64.h:
@@ -718,8 +738,6 @@ libps1emu_core.a:
 /usr/include/x86_64-linux-gnu/bits/types/__fpos64_t.h:
 
 /usr/include/x86_64-linux-gnu/bits/stdint-least.h:
-
-/usr/include/x86_64-linux-gnu/bits/types/mbstate_t.h:
 
 /usr/include/x86_64-linux-gnu/bits/types/struct_timespec.h:
 
@@ -775,7 +793,17 @@ libps1emu_core.a:
 
 /usr/include/x86_64-linux-gnu/bits/typesizes.h:
 
+/usr/include/x86_64-linux-gnu/c++/15/bits/c++io.h:
+
+/usr/lib/x86_64-linux-gnu/crtn.o:
+
+/usr/include/x86_64-linux-gnu/bits/waitflags.h:
+
 /usr/include/x86_64-linux-gnu/c++/15/bits/atomic_word.h:
+
+/usr/include/x86_64-linux-gnu/bits/types/mbstate_t.h:
+
+/usr/include/x86_64-linux-gnu/c++/15/bits/basic_file.h:
 
 /usr/include/x86_64-linux-gnu/c++/15/bits/c++allocator.h:
 
@@ -783,9 +811,9 @@ libps1emu_core.a:
 
 /usr/include/x86_64-linux-gnu/c++/15/bits/c++locale.h:
 
-/usr/include/c++/15/bits/uses_allocator_args.h:
-
 /usr/include/x86_64-linux-gnu/bits/timesize.h:
+
+/usr/include/c++/15/bits/uses_allocator_args.h:
 
 /usr/include/x86_64-linux-gnu/c++/15/bits/cpu_defines.h:
 
@@ -794,13 +822,3 @@ libps1emu_core.a:
 /usr/lib/gcc/x86_64-linux-gnu/15/include/stdarg.h:
 
 /usr/lib/gcc/x86_64-linux-gnu/15/include/stdint.h:
-
-/usr/include/stdlib.h:
-
-/lib/x86_64-linux-gnu/libmvec.so.1:
-
-/usr/lib/x86_64-linux-gnu/Scrt1.o:
-
-/usr/include/x86_64-linux-gnu/bits/waitflags.h:
-
-/usr/lib/x86_64-linux-gnu/crtn.o:

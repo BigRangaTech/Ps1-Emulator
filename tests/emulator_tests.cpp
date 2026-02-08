@@ -6,8 +6,10 @@
 #include "core/scheduler.h"
 #include "plugins/ipc.h"
 
+#include <algorithm>
 #include <cstdint>
 #include <cstdio>
+#include <cstdlib>
 #include <fstream>
 #include <iostream>
 #include <sys/wait.h>
@@ -48,6 +50,16 @@ struct ScopedConfigFile {
   }
 };
 
+struct ScopedTempFile {
+  std::string path;
+  explicit ScopedTempFile(std::string p) : path(std::move(p)) {}
+  ~ScopedTempFile() {
+    if (!path.empty()) {
+      std::remove(path.c_str());
+    }
+  }
+};
+
 struct ScopedCore {
   ps1emu::EmulatorCore core;
   bool active = false;
@@ -58,7 +70,7 @@ struct ScopedCore {
   }
 };
 
-static bool write_test_config(const std::string &path) {
+static bool write_test_config(const std::string &path, const std::string &cdrom_image = std::string()) {
   std::ofstream file(path);
   if (!file.is_open()) {
     return false;
@@ -68,6 +80,11 @@ static bool write_test_config(const std::string &path) {
   file << "plugin.input=./build/ps1emu_input_stub\n";
   file << "plugin.cdrom=./build/ps1emu_cdrom_stub\n";
   file << "bios.path=\n";
+  if (!cdrom_image.empty()) {
+    file << "cdrom.image=" << cdrom_image << "\n";
+  } else {
+    file << "cdrom.image=\n";
+  }
   file << "cpu.mode=interpreter\n";
   file << "sandbox.enabled=false\n";
   file << "sandbox.seccomp_strict=false\n";
@@ -75,6 +92,18 @@ static bool write_test_config(const std::string &path) {
   file << "sandbox.rlimit_as_mb=0\n";
   file << "sandbox.rlimit_nofile=0\n";
   return true;
+}
+
+static bool write_binary_file(const std::string &path, const std::vector<uint8_t> &data) {
+  std::ofstream file(path, std::ios::binary);
+  if (!file.is_open()) {
+    return false;
+  }
+  if (!data.empty()) {
+    file.write(reinterpret_cast<const char *>(data.data()),
+               static_cast<std::streamsize>(data.size()));
+  }
+  return file.good();
 }
 
 static bool run_stub_handshake(const std::string &path, const std::string &name) {
@@ -277,6 +306,78 @@ static bool test_memory_map_mmio() {
   return true;
 }
 
+static bool test_cdrom_iso_read_mmio() {
+  ScopedTempFile iso("/tmp/ps1emu_test.iso");
+
+  std::vector<uint8_t> data(2048 * 2, 0);
+  std::fill(data.begin(), data.begin() + 2048, 0x11);
+  std::fill(data.begin() + 2048, data.end(), 0x22);
+  CHECK(write_binary_file(iso.path, data));
+
+  ps1emu::MmioBus mmio;
+  mmio.reset();
+  std::string error;
+  CHECK(mmio.load_cdrom_image(iso.path, error));
+
+  mmio.write8(0x1F801802, 0x00);
+  mmio.write8(0x1F801802, 0x02);
+  mmio.write8(0x1F801802, 0x00);
+  mmio.write8(0x1F801801, 0x02); // Setloc
+  (void)mmio.read8(0x1F801801);
+
+  mmio.write8(0x1F801801, 0x06); // ReadN
+  (void)mmio.read8(0x1F801801);
+
+  uint8_t b0 = mmio.read8(0x1F801802);
+  uint8_t b1 = mmio.read8(0x1F801802);
+  uint8_t b2 = mmio.read8(0x1F801802);
+  uint8_t b3 = mmio.read8(0x1F801802);
+  CHECK(b0 == 0x11);
+  CHECK(b1 == 0x11);
+  CHECK(b2 == 0x11);
+  CHECK(b3 == 0x11);
+  return true;
+}
+
+static bool test_cdrom_cue_read_mmio() {
+  ScopedTempFile bin("/tmp/ps1emu_test.bin");
+  ScopedTempFile cue("/tmp/ps1emu_test.cue");
+
+  std::vector<uint8_t> data(2352 * 2, 0);
+  for (size_t sector = 0; sector < 2; ++sector) {
+    size_t base = sector * 2352 + 24;
+    std::fill(data.begin() + static_cast<long>(base),
+              data.begin() + static_cast<long>(base + 2048),
+              static_cast<uint8_t>(0x30 + sector));
+  }
+  CHECK(write_binary_file(bin.path, data));
+
+  std::ofstream cue_file(cue.path);
+  CHECK(cue_file.is_open());
+  cue_file << "FILE \"" << bin.path << "\" BINARY\n";
+  cue_file << "  TRACK 01 MODE2/2352\n";
+  cue_file << "    INDEX 01 00:02:00\n";
+  cue_file.close();
+
+  ps1emu::MmioBus mmio;
+  mmio.reset();
+  std::string error;
+  CHECK(mmio.load_cdrom_image(cue.path, error));
+
+  mmio.write8(0x1F801802, 0x00);
+  mmio.write8(0x1F801802, 0x02);
+  mmio.write8(0x1F801802, 0x01);
+  mmio.write8(0x1F801801, 0x02); // Setloc to LBA 1
+  (void)mmio.read8(0x1F801801);
+
+  mmio.write8(0x1F801801, 0x06);
+  (void)mmio.read8(0x1F801801);
+
+  uint8_t b0 = mmio.read8(0x1F801802);
+  CHECK(b0 == 0x31);
+  return true;
+}
+
 static bool test_stub_plugins_handshake() {
   CHECK(run_stub_handshake("./build/ps1emu_spu_stub", "SPU"));
   CHECK(run_stub_handshake("./build/ps1emu_input_stub", "INPUT"));
@@ -373,7 +474,46 @@ static bool test_dma_bcr_zero() {
   return true;
 }
 
+static bool test_cdrom_dma_transfer() {
+  ScopedTempFile iso("/tmp/ps1emu_dma.iso");
+
+  std::vector<uint8_t> data(2048 * 1, 0x5A);
+  CHECK(write_binary_file(iso.path, data));
+
+  ScopedConfigFile config("ps1emu_tests_cdrom.conf");
+  CHECK(write_test_config(config.path, iso.path));
+
+  ScopedCore scoped;
+  CHECK(scoped.core.initialize(config.path));
+  scoped.active = true;
+
+  auto &mmio = ps1emu::EmulatorCoreTestAccess::mmio(scoped.core);
+  auto &memory = ps1emu::EmulatorCoreTestAccess::memory(scoped.core);
+
+  mmio.write8(0x1F801802, 0x00);
+  mmio.write8(0x1F801802, 0x02);
+  mmio.write8(0x1F801802, 0x00);
+  mmio.write8(0x1F801801, 0x02); // Setloc
+  (void)mmio.read8(0x1F801801);
+  mmio.write8(0x1F801801, 0x06); // ReadN
+  (void)mmio.read8(0x1F801801);
+
+  uint32_t madr = 0x00040000;
+  mmio.write32(0x1F8010F4, (1u << 23) | (1u << (16 + 3)));
+  mmio.write32(0x1F801080 + 0x10 * 3 + 0x0, madr);
+  mmio.write32(0x1F801080 + 0x10 * 3 + 0x4, (1u << 16) | 512u);
+  mmio.write32(0x1F801080 + 0x10 * 3 + 0x8, (1u << 24));
+
+  ps1emu::EmulatorCoreTestAccess::process_dma(scoped.core);
+
+  uint32_t word0 = memory.read32(madr);
+  CHECK((word0 & 0xFFu) == 0x5Au);
+  return true;
+}
+
 int main() {
+  setenv("PS1EMU_HEADLESS", "1", 1);
+
   struct Test {
     const char *name;
     bool (*fn)();
@@ -386,10 +526,13 @@ int main() {
       {"gpu_packet_parsing", test_gpu_packet_parsing},
       {"gpu_packet_parsing_edges", test_gpu_packet_parsing_edges},
       {"memory_map_mmio", test_memory_map_mmio},
+      {"cdrom_iso_read_mmio", test_cdrom_iso_read_mmio},
+      {"cdrom_cue_read_mmio", test_cdrom_cue_read_mmio},
       {"stub_plugins_handshake", test_stub_plugins_handshake},
       {"gpu_pipeline_dma_integration", test_gpu_pipeline_dma_integration},
       {"dma_decrement_and_blocks", test_dma_decrement_and_blocks},
       {"dma_bcr_zero", test_dma_bcr_zero},
+      {"cdrom_dma_transfer", test_cdrom_dma_transfer},
   };
 
   int passed = 0;

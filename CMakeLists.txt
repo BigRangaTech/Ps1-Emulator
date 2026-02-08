@@ -7,9 +7,16 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 option(PS1EMU_ENABLE_WERROR "Treat warnings as errors" OFF)
 
+find_package(PkgConfig QUIET)
+if(PkgConfig_FOUND)
+  pkg_check_modules(SDL2 QUIET sdl2)
+  pkg_check_modules(SDL2TTF QUIET SDL2_ttf)
+endif()
+
 add_library(ps1emu_core
   src/core/app_paths.cpp
   src/core/bios.cpp
+  src/core/cdrom_image.cpp
   src/core/config.cpp
   src/core/config_paths.cpp
   src/core/cpu.cpp
@@ -50,20 +57,25 @@ foreach(tgt ps1emu_gpu_stub ps1emu_spu_stub ps1emu_input_stub ps1emu_cdrom_stub)
   target_compile_options(${tgt} PRIVATE -Wall -Wextra -Wpedantic)
 endforeach()
 
+if(SDL2_FOUND)
+  target_sources(ps1emu_gpu_stub PRIVATE src/ui/sdl_backend.cpp)
+  target_compile_definitions(ps1emu_gpu_stub PRIVATE PS1EMU_GPU_SDL)
+  target_include_directories(ps1emu_gpu_stub PRIVATE ${SDL2_INCLUDE_DIRS} src)
+  target_link_libraries(ps1emu_gpu_stub PRIVATE ${SDL2_LIBRARIES})
+  target_compile_options(ps1emu_gpu_stub PRIVATE ${SDL2_CFLAGS_OTHER})
+else()
+  message(WARNING "SDL2 not found; ps1emu_gpu_stub will run headless.")
+endif()
+
 add_executable(ps1emu_ui src/ui/text_ui.cpp src/ui/main.cpp)
 target_link_libraries(ps1emu_ui PRIVATE ps1emu_core)
 target_compile_options(ps1emu_ui PRIVATE -Wall -Wextra -Wpedantic)
 
 option(PS1EMU_ENABLE_GUI "Build SDL2 GUI" ON)
 if(PS1EMU_ENABLE_GUI)
-  find_package(PkgConfig QUIET)
-  if(PkgConfig_FOUND)
-    pkg_check_modules(SDL2 QUIET sdl2)
-    pkg_check_modules(SDL2TTF QUIET SDL2_ttf)
-  endif()
-
   if(SDL2_FOUND AND SDL2TTF_FOUND)
     add_executable(ps1emu_gui src/ui/gui_app.cpp src/ui/gui_main.cpp)
+    target_sources(ps1emu_gui PRIVATE src/ui/sdl_backend.cpp)
     target_include_directories(ps1emu_gui PRIVATE ${SDL2_INCLUDE_DIRS} ${SDL2TTF_INCLUDE_DIRS} src)
     target_link_libraries(ps1emu_gui PRIVATE ps1emu_core ${SDL2_LIBRARIES} ${SDL2TTF_LIBRARIES})
     target_compile_options(ps1emu_gui PRIVATE -Wall -Wextra -Wpedantic ${SDL2_CFLAGS_OTHER} ${SDL2TTF_CFLAGS_OTHER})

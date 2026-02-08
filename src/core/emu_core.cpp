@@ -52,6 +52,7 @@ void EmulatorCore::run_for_cycles(uint32_t cycles) {
     mmio_.tick(step_cycles);
     process_dma();
     flush_gpu_commands();
+    flush_gpu_control();
   }
 }
 
@@ -70,7 +71,7 @@ void EmulatorCore::flush_gpu_commands() {
     mmio_.restore_gpu_commands(std::move(remainder));
   }
 
-  for (const auto &packet : packets) {
+  auto send_packet = [&](const GpuPacket &packet) {
     std::vector<uint8_t> payload;
     payload.reserve(packet.words.size() * sizeof(uint32_t));
     for (uint32_t word : packet.words) {
@@ -82,15 +83,53 @@ void EmulatorCore::flush_gpu_commands() {
 
     if (!plugin_host_.send_frame(PluginType::Gpu, 0x0001, payload)) {
       std::cerr << "Failed to send GPU command frame\n";
-      return;
+      return false;
     }
 
     uint16_t reply_type = 0;
     std::vector<uint8_t> reply_payload;
     if (!plugin_host_.recv_frame(PluginType::Gpu, reply_type, reply_payload) || reply_type != 0x0002) {
       std::cerr << "GPU command frame not acknowledged\n";
+      return false;
+    }
+    return true;
+  };
+
+  for (const auto &packet : packets) {
+    if (!send_packet(packet)) {
       return;
     }
+  }
+}
+
+void EmulatorCore::flush_gpu_control() {
+  if (!mmio_.has_gpu_control()) {
+    return;
+  }
+  std::vector<uint32_t> commands = mmio_.take_gpu_control();
+  if (commands.empty()) {
+    return;
+  }
+
+  std::vector<uint8_t> payload;
+  payload.reserve(commands.size() * sizeof(uint32_t));
+  for (uint32_t word : commands) {
+    payload.push_back(static_cast<uint8_t>(word & 0xFF));
+    payload.push_back(static_cast<uint8_t>((word >> 8) & 0xFF));
+    payload.push_back(static_cast<uint8_t>((word >> 16) & 0xFF));
+    payload.push_back(static_cast<uint8_t>((word >> 24) & 0xFF));
+  }
+
+  if (!plugin_host_.send_frame(PluginType::Gpu, 0x0003, payload)) {
+    std::cerr << "Failed to send GPU control frame\n";
+    return;
+  }
+
+  uint16_t reply_type = 0;
+  std::vector<uint8_t> reply_payload;
+  if (!plugin_host_.recv_frame(PluginType::Gpu, reply_type, reply_payload) || reply_type != 0x0002) {
+    std::cerr << "GPU control frame not acknowledged\n";
+    return;
   }
 }
 
@@ -116,15 +155,16 @@ void EmulatorCore::process_dma() {
     }
     bool decrement = (chcr & (1u << 1)) != 0;
 
-    std::vector<uint8_t> payload;
-    payload.reserve(total_words * 4);
+    std::vector<uint32_t> words;
+    words.reserve(total_words + gpu_dma_remainder_.size());
+    if (!gpu_dma_remainder_.empty()) {
+      words.insert(words.end(), gpu_dma_remainder_.begin(), gpu_dma_remainder_.end());
+      gpu_dma_remainder_.clear();
+    }
     for (uint32_t i = 0; i < total_words; ++i) {
       uint32_t addr = decrement ? (madr - i * 4) : (madr + i * 4);
       uint32_t word = memory_.read32(addr);
-      payload.push_back(static_cast<uint8_t>(word & 0xFF));
-      payload.push_back(static_cast<uint8_t>((word >> 8) & 0xFF));
-      payload.push_back(static_cast<uint8_t>((word >> 16) & 0xFF));
-      payload.push_back(static_cast<uint8_t>((word >> 24) & 0xFF));
+      words.push_back(word);
     }
 
     if (decrement) {
@@ -132,15 +172,71 @@ void EmulatorCore::process_dma() {
     } else {
       mmio_.set_dma_madr(channel, madr + total_words * 4);
     }
-    if (!plugin_host_.send_frame(PluginType::Gpu, 0x0001, payload)) {
-      std::cerr << "DMA GPU frame send failed\n";
-    } else {
+
+    std::vector<uint32_t> remainder;
+    std::vector<GpuPacket> packets = parse_gp0_packets(words, remainder);
+    if (!remainder.empty()) {
+      gpu_dma_remainder_ = std::move(remainder);
+    }
+
+    auto send_packet = [&](const GpuPacket &packet) {
+      std::vector<uint8_t> payload;
+      payload.reserve(packet.words.size() * sizeof(uint32_t));
+      for (uint32_t word : packet.words) {
+        payload.push_back(static_cast<uint8_t>(word & 0xFF));
+        payload.push_back(static_cast<uint8_t>((word >> 8) & 0xFF));
+        payload.push_back(static_cast<uint8_t>((word >> 16) & 0xFF));
+        payload.push_back(static_cast<uint8_t>((word >> 24) & 0xFF));
+      }
+
+      if (!plugin_host_.send_frame(PluginType::Gpu, 0x0001, payload)) {
+        std::cerr << "DMA GPU frame send failed\n";
+        return false;
+      }
+
       uint16_t reply_type = 0;
       std::vector<uint8_t> reply_payload;
       if (!plugin_host_.recv_frame(PluginType::Gpu, reply_type, reply_payload) || reply_type != 0x0002) {
         std::cerr << "DMA GPU frame not acknowledged\n";
+        return false;
+      }
+      return true;
+    };
+
+    for (const auto &packet : packets) {
+      if (!send_packet(packet)) {
+        break;
       }
     }
+  } else if (channel == 3) {
+    uint32_t madr = mmio_.dma_madr(channel) & 0x1FFFFC;
+    uint32_t bcr = mmio_.dma_bcr(channel);
+    uint32_t block_size = bcr & 0xFFFF;
+    uint32_t block_count = (bcr >> 16) & 0xFFFF;
+    uint32_t total_words = block_size * (block_count ? block_count : 1);
+    if (total_words == 0) {
+      total_words = block_size;
+    }
+    if (total_words == 0) {
+      total_words = 1;
+    }
+
+    std::vector<uint8_t> payload(total_words * 4);
+    size_t read = mmio_.read_cdrom_data(payload.data(), payload.size());
+    for (size_t i = read; i < payload.size(); ++i) {
+      payload[i] = 0;
+    }
+
+    for (uint32_t i = 0; i < total_words; ++i) {
+      size_t base = static_cast<size_t>(i) * 4;
+      uint32_t word = static_cast<uint32_t>(payload[base]) |
+                      (static_cast<uint32_t>(payload[base + 1]) << 8) |
+                      (static_cast<uint32_t>(payload[base + 2]) << 16) |
+                      (static_cast<uint32_t>(payload[base + 3]) << 24);
+      memory_.write32(madr + i * 4, word);
+    }
+
+    mmio_.set_dma_madr(channel, madr + total_words * 4);
   }
 }
 
@@ -204,6 +300,13 @@ bool EmulatorCore::load_and_apply_config(const std::string &config_path) {
     bios_.load_hle_stub();
     memory_.load_bios(bios_);
     std::cerr << "Using HLE BIOS stub (no BIOS file configured)\n";
+  }
+
+  if (!config_.cdrom_image.empty()) {
+    std::string error;
+    if (!mmio_.load_cdrom_image(config_.cdrom_image, error)) {
+      std::cerr << "CD-ROM image error: " << error << "\n";
+    }
   }
 
   cpu_.set_mode(resolve_cpu_mode());

@@ -422,6 +422,30 @@ src/core/bios.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/ps1emu_core.dir/build.make CMakeFiles/ps1emu_core.dir/src/core/bios.cpp.s
 .PHONY : src/core/bios.cpp.s
 
+src/core/cdrom_image.o: src/core/cdrom_image.cpp.o
+.PHONY : src/core/cdrom_image.o
+
+# target to build an object file
+src/core/cdrom_image.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/ps1emu_core.dir/build.make CMakeFiles/ps1emu_core.dir/src/core/cdrom_image.cpp.o
+.PHONY : src/core/cdrom_image.cpp.o
+
+src/core/cdrom_image.i: src/core/cdrom_image.cpp.i
+.PHONY : src/core/cdrom_image.i
+
+# target to preprocess a source file
+src/core/cdrom_image.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/ps1emu_core.dir/build.make CMakeFiles/ps1emu_core.dir/src/core/cdrom_image.cpp.i
+.PHONY : src/core/cdrom_image.cpp.i
+
+src/core/cdrom_image.s: src/core/cdrom_image.cpp.s
+.PHONY : src/core/cdrom_image.s
+
+# target to generate assembly for a file
+src/core/cdrom_image.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/ps1emu_core.dir/build.make CMakeFiles/ps1emu_core.dir/src/core/cdrom_image.cpp.s
+.PHONY : src/core/cdrom_image.cpp.s
+
 src/core/config.o: src/core/config.cpp.o
 .PHONY : src/core/config.o
 
@@ -806,6 +830,33 @@ src/ui/main.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/ps1emu_ui.dir/build.make CMakeFiles/ps1emu_ui.dir/src/ui/main.cpp.s
 .PHONY : src/ui/main.cpp.s
 
+src/ui/sdl_backend.o: src/ui/sdl_backend.cpp.o
+.PHONY : src/ui/sdl_backend.o
+
+# target to build an object file
+src/ui/sdl_backend.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/ps1emu_gpu_stub.dir/build.make CMakeFiles/ps1emu_gpu_stub.dir/src/ui/sdl_backend.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/ps1emu_gui.dir/build.make CMakeFiles/ps1emu_gui.dir/src/ui/sdl_backend.cpp.o
+.PHONY : src/ui/sdl_backend.cpp.o
+
+src/ui/sdl_backend.i: src/ui/sdl_backend.cpp.i
+.PHONY : src/ui/sdl_backend.i
+
+# target to preprocess a source file
+src/ui/sdl_backend.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/ps1emu_gpu_stub.dir/build.make CMakeFiles/ps1emu_gpu_stub.dir/src/ui/sdl_backend.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/ps1emu_gui.dir/build.make CMakeFiles/ps1emu_gui.dir/src/ui/sdl_backend.cpp.i
+.PHONY : src/ui/sdl_backend.cpp.i
+
+src/ui/sdl_backend.s: src/ui/sdl_backend.cpp.s
+.PHONY : src/ui/sdl_backend.s
+
+# target to generate assembly for a file
+src/ui/sdl_backend.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/ps1emu_gpu_stub.dir/build.make CMakeFiles/ps1emu_gpu_stub.dir/src/ui/sdl_backend.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/ps1emu_gui.dir/build.make CMakeFiles/ps1emu_gui.dir/src/ui/sdl_backend.cpp.s
+.PHONY : src/ui/sdl_backend.cpp.s
+
 src/ui/text_ui.o: src/ui/text_ui.cpp.o
 .PHONY : src/ui/text_ui.o
 
@@ -893,6 +944,9 @@ help:
 	@echo "... src/core/bios.o"
 	@echo "... src/core/bios.i"
 	@echo "... src/core/bios.s"
+	@echo "... src/core/cdrom_image.o"
+	@echo "... src/core/cdrom_image.i"
+	@echo "... src/core/cdrom_image.s"
 	@echo "... src/core/config.o"
 	@echo "... src/core/config.i"
 	@echo "... src/core/config.s"
@@ -941,6 +995,9 @@ help:
 	@echo "... src/ui/main.o"
 	@echo "... src/ui/main.i"
 	@echo "... src/ui/main.s"
+	@echo "... src/ui/sdl_backend.o"
+	@echo "... src/ui/sdl_backend.i"
+	@echo "... src/ui/sdl_backend.s"
 	@echo "... src/ui/text_ui.o"
 	@echo "... src/ui/text_ui.i"
 	@echo "... src/ui/text_ui.s"

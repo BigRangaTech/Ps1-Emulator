@@ -1,6 +1,7 @@
 #include "ui/gui_app.h"
 
 #include "core/app_paths.h"
+#include "ui/sdl_backend.h"
 
 #include <algorithm>
 #include <iostream>
@@ -33,6 +34,7 @@ bool GuiApp::run(const std::string &config_path) {
     status_message_ = "Core initialized.";
   }
   bios_input_ = core_.config().bios_path;
+  cdrom_input_ = core_.config().cdrom_image;
 
   bool running = true;
   while (running) {
@@ -54,14 +56,18 @@ bool GuiApp::run(const std::string &config_path) {
 }
 
 bool GuiApp::init_sdl() {
-  if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER) != 0) {
+  shutdown_sdl();
+  if (!init_sdl_video_with_fallback()) {
     std::cerr << "SDL init failed: " << SDL_GetError() << "\n";
     return false;
   }
-  if (TTF_Init() != 0) {
-    std::cerr << "SDL_ttf init failed: " << TTF_GetError() << "\n";
-    SDL_Quit();
-    return false;
+
+  if (TTF_WasInit() == 0) {
+    if (TTF_Init() != 0) {
+      std::cerr << "SDL_ttf init failed: " << TTF_GetError() << "\n";
+      SDL_Quit();
+      return false;
+    }
   }
 
   window_ = SDL_CreateWindow("PS1 Emulator",
@@ -127,6 +133,9 @@ void GuiApp::handle_event(const SDL_Event &event, bool &running) {
       if (bios_input_active_) {
         bios_input_ += event.text.text;
         bios_input_dirty_ = true;
+      } else if (cdrom_input_active_) {
+        cdrom_input_ += event.text.text;
+        cdrom_input_dirty_ = true;
       }
       break;
     case SDL_KEYDOWN:
@@ -141,6 +150,19 @@ void GuiApp::handle_event(const SDL_Event &event, bool &running) {
           bios_input_ = core_.config().bios_path;
           bios_input_dirty_ = false;
           bios_input_active_ = false;
+          SDL_StopTextInput();
+        }
+      } else if (cdrom_input_active_) {
+        if (event.key.keysym.sym == SDLK_BACKSPACE && !cdrom_input_.empty()) {
+          cdrom_input_.pop_back();
+          cdrom_input_dirty_ = true;
+        } else if (event.key.keysym.sym == SDLK_RETURN || event.key.keysym.sym == SDLK_KP_ENTER) {
+          cdrom_input_active_ = false;
+          SDL_StopTextInput();
+        } else if (event.key.keysym.sym == SDLK_ESCAPE) {
+          cdrom_input_ = core_.config().cdrom_image;
+          cdrom_input_dirty_ = false;
+          cdrom_input_active_ = false;
           SDL_StopTextInput();
         }
       }
@@ -172,6 +194,9 @@ void GuiApp::render() {
 
   if (bios_picker_open_) {
     draw_bios_picker();
+  }
+  if (cdrom_picker_open_) {
+    draw_cdrom_picker();
   }
 
   SDL_RenderPresent(renderer_);
@@ -266,21 +291,13 @@ void GuiApp::draw_settings_view() {
                   mouse_y_ < bios_input_rect_.y + bios_input_rect_.h;
     if (inside) {
       bios_input_active_ = true;
+      cdrom_input_active_ = false;
       SDL_StartTextInput();
     } else if (bios_input_active_) {
       bios_input_active_ = false;
       SDL_StopTextInput();
     }
   }
-
-  draw_text(panel.x + 24, panel.y + 160, "CPU mode:", rgb(88, 88, 88), 14, false);
-  std::string mode_text = "Auto";
-  if (cfg.cpu_mode == CpuMode::Interpreter) {
-    mode_text = "Interpreter";
-  } else if (cfg.cpu_mode == CpuMode::Dynarec) {
-    mode_text = "Dynarec";
-  }
-  draw_text(panel.x + 120, panel.y + 160, mode_text, rgb(47, 110, 122), 14, true);
 
   SDL_Rect browse{panel.x + 24, panel.y + 220, 180, 42};
   SDL_Rect import_btn{panel.x + 212, panel.y + 220, 180, 42};
@@ -334,6 +351,64 @@ void GuiApp::draw_settings_view() {
     core_ready_ = core_.initialize(config_path_);
     status_message_ = core_ready_ ? "Config reloaded." : "Failed to reload config.";
   }
+
+  draw_text(panel.x + 24, panel.y + 280, "CD-ROM image:", rgb(88, 88, 88), 14, false);
+  cdrom_input_rect_ = SDL_Rect{panel.x + 24, panel.y + 302, 620, 36};
+  SDL_Color cd_box = cdrom_input_active_ ? rgb(255, 248, 242) : rgb(246, 243, 239);
+  SDL_Color cd_border = cdrom_input_active_ ? rgb(214, 110, 44) : rgb(220, 220, 220);
+  fill_rect(cdrom_input_rect_, cd_box);
+  draw_rect(cdrom_input_rect_, cd_border, 1);
+  std::string cd_text = cdrom_input_.empty() ? "path/to/game.cue or .iso" : cdrom_input_;
+  SDL_Color cd_color = cdrom_input_.empty() ? rgb(150, 150, 150) : rgb(27, 27, 27);
+  draw_text(cdrom_input_rect_.x + 10, cdrom_input_rect_.y + 9, cd_text, cd_color, 14, false);
+
+  if (mouse_pressed_ && !cdrom_picker_open_) {
+    bool inside = mouse_x_ >= cdrom_input_rect_.x &&
+                  mouse_x_ < cdrom_input_rect_.x + cdrom_input_rect_.w &&
+                  mouse_y_ >= cdrom_input_rect_.y &&
+                  mouse_y_ < cdrom_input_rect_.y + cdrom_input_rect_.h;
+    if (inside) {
+      cdrom_input_active_ = true;
+      bios_input_active_ = false;
+      SDL_StartTextInput();
+    } else if (cdrom_input_active_) {
+      cdrom_input_active_ = false;
+      SDL_StopTextInput();
+    }
+  }
+
+  SDL_Rect cd_browse{panel.x + 24, panel.y + 350, 180, 42};
+  SDL_Rect cd_save{panel.x + 212, panel.y + 350, 180, 42};
+  SDL_Rect cd_clear{panel.x + 400, panel.y + 350, 180, 42};
+
+  if (!cdrom_picker_open_ && draw_button(cd_browse, "Browse Disc")) {
+    scan_cdrom_candidates();
+    cdrom_picker_open_ = true;
+  }
+  if (!cdrom_picker_open_ && draw_button(cd_save, "Save Disc Path")) {
+    std::string error;
+    if (update_config_value(config_path_, "cdrom.image", cdrom_input_, error)) {
+      cdrom_input_dirty_ = false;
+      core_.shutdown();
+      core_ready_ = core_.initialize(config_path_);
+      status_message_ = core_ready_ ? "CD-ROM path saved." : "Saved CD-ROM path but core failed.";
+    } else {
+      status_message_ = error;
+    }
+  }
+  if (!cdrom_picker_open_ && draw_button(cd_clear, "Clear Disc")) {
+    cdrom_input_.clear();
+    cdrom_input_dirty_ = true;
+  }
+
+  draw_text(panel.x + 24, panel.y + 410, "CPU mode:", rgb(88, 88, 88), 14, false);
+  std::string mode_text = "Auto";
+  if (cfg.cpu_mode == CpuMode::Interpreter) {
+    mode_text = "Interpreter";
+  } else if (cfg.cpu_mode == CpuMode::Dynarec) {
+    mode_text = "Dynarec";
+  }
+  draw_text(panel.x + 120, panel.y + 410, mode_text, rgb(47, 110, 122), 14, true);
 }
 
 void GuiApp::scan_bios_candidates() {
@@ -381,6 +456,85 @@ void GuiApp::scan_bios_candidates() {
     }
   }
   std::sort(bios_candidates_.begin(), bios_candidates_.end());
+}
+
+void GuiApp::scan_cdrom_candidates() {
+  cdrom_candidates_.clear();
+  cdrom_candidate_offset_ = 0;
+
+  const std::string dirs[] = {"./test-roms", "./roms", "./games"};
+  std::string data_dir = app_data_dir() + "/roms";
+  const std::string extra_dirs[] = {data_dir};
+
+  auto add_from_dir = [&](const std::string &dir) {
+    std::error_code ec;
+    if (!std::filesystem::exists(dir, ec)) {
+      return;
+    }
+    for (const auto &entry : std::filesystem::directory_iterator(dir, ec)) {
+      if (ec || !entry.is_regular_file()) {
+        continue;
+      }
+      auto path = entry.path();
+      std::string ext = path.extension().string();
+      std::transform(ext.begin(), ext.end(), ext.begin(),
+                     [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
+      if (ext == ".cue" || ext == ".iso" || ext == ".bin") {
+        cdrom_candidates_.push_back(path.string());
+      }
+    }
+  };
+
+  for (const auto &dir : dirs) {
+    add_from_dir(dir);
+  }
+  for (const auto &dir : extra_dirs) {
+    add_from_dir(dir);
+  }
+  std::sort(cdrom_candidates_.begin(), cdrom_candidates_.end());
+}
+
+void GuiApp::draw_cdrom_picker() {
+  SDL_Rect overlay{0, 0, width_, height_};
+  fill_rect(overlay, rgb(20, 20, 20, 120));
+
+  SDL_Rect panel{width_ / 2 - 300, height_ / 2 - 220, 600, 440};
+  fill_rect(panel, rgb(255, 255, 255, 245));
+  draw_rect(panel, rgb(220, 220, 220, 255));
+
+  draw_text(panel.x + 20, panel.y + 16, "Select a game image", rgb(27, 27, 27), 16, true);
+  draw_text(panel.x + 20, panel.y + 44, "Supported: .cue, .bin, .iso", rgb(88, 88, 88), 12, false);
+
+  int list_y = panel.y + 80;
+  int item_height = 32;
+  int visible = 9;
+  int start = cdrom_candidate_offset_;
+  int end = std::min(start + visible, static_cast<int>(cdrom_candidates_.size()));
+
+  if (cdrom_candidates_.empty()) {
+    draw_text(panel.x + 20, list_y, "No disc images found.", rgb(214, 110, 44), 14, true);
+  }
+
+  for (int i = start; i < end; ++i) {
+    SDL_Rect item{panel.x + 20, list_y + (i - start) * (item_height + 6), panel.w - 40, item_height};
+    if (draw_button(item, cdrom_candidates_[i])) {
+      cdrom_input_ = cdrom_candidates_[i];
+      cdrom_input_dirty_ = true;
+      cdrom_picker_open_ = false;
+      SDL_StopTextInput();
+      status_message_ = "Selected CD-ROM image.";
+    }
+  }
+
+  SDL_Rect rescan{panel.x + 20, panel.y + panel.h - 56, 140, 36};
+  SDL_Rect close{panel.x + panel.w - 160, panel.y + panel.h - 56, 140, 36};
+
+  if (draw_button(rescan, "Rescan")) {
+    scan_cdrom_candidates();
+  }
+  if (draw_button(close, "Close")) {
+    cdrom_picker_open_ = false;
+  }
 }
 
 void GuiApp::draw_bios_picker() {

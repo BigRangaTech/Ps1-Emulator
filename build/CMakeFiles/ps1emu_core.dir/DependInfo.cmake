@@ -10,6 +10,7 @@ set(CMAKE_DEPENDS_LANGUAGES
 set(CMAKE_DEPENDS_DEPENDENCY_FILES
   "/home/jessie/Documents/Ps1-Emulator/src/core/app_paths.cpp" "CMakeFiles/ps1emu_core.dir/src/core/app_paths.cpp.o" "gcc" "CMakeFiles/ps1emu_core.dir/src/core/app_paths.cpp.o.d"
   "/home/jessie/Documents/Ps1-Emulator/src/core/bios.cpp" "CMakeFiles/ps1emu_core.dir/src/core/bios.cpp.o" "gcc" "CMakeFiles/ps1emu_core.dir/src/core/bios.cpp.o.d"
+  "/home/jessie/Documents/Ps1-Emulator/src/core/cdrom_image.cpp" "CMakeFiles/ps1emu_core.dir/src/core/cdrom_image.cpp.o" "gcc" "CMakeFiles/ps1emu_core.dir/src/core/cdrom_image.cpp.o.d"
   "/home/jessie/Documents/Ps1-Emulator/src/core/config.cpp" "CMakeFiles/ps1emu_core.dir/src/core/config.cpp.o" "gcc" "CMakeFiles/ps1emu_core.dir/src/core/config.cpp.o.d"
   "/home/jessie/Documents/Ps1-Emulator/src/core/config_paths.cpp" "CMakeFiles/ps1emu_core.dir/src/core/config_paths.cpp.o" "gcc" "CMakeFiles/ps1emu_core.dir/src/core/config_paths.cpp.o.d"
   "/home/jessie/Documents/Ps1-Emulator/src/core/cpu.cpp" "CMakeFiles/ps1emu_core.dir/src/core/cpu.cpp.o" "gcc" "CMakeFiles/ps1emu_core.dir/src/core/cpu.cpp.o.d"

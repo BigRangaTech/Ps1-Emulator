@@ -1,8 +1,11 @@
 #ifndef PS1EMU_MMIO_H
 #define PS1EMU_MMIO_H
 
+#include "core/cdrom_image.h"
+
 #include <array>
 #include <cstdint>
+#include <string>
 #include <vector>
 
 namespace ps1emu {
@@ -25,23 +28,31 @@ public:
   bool has_gpu_commands() const;
   std::vector<uint32_t> take_gpu_commands();
   void restore_gpu_commands(std::vector<uint32_t> remainder);
+  bool has_gpu_control() const;
+  std::vector<uint32_t> take_gpu_control();
   uint32_t consume_dma_channel();
   uint32_t dma_madr(uint32_t channel) const;
   uint32_t dma_bcr(uint32_t channel) const;
   uint32_t dma_chcr(uint32_t channel) const;
   void set_dma_madr(uint32_t channel, uint32_t value);
+  bool load_cdrom_image(const std::string &path, std::string &error);
+  size_t read_cdrom_data(uint8_t *dst, size_t len);
 
 private:
   static constexpr uint32_t kBase = 0x1F801000;
   static constexpr uint32_t kSize = 0x2000;
 
   uint32_t offset(uint32_t addr) const;
+  void cdrom_push_response(uint8_t value);
+  void cdrom_raise_irq(uint8_t flags);
+  void cdrom_execute_command(uint8_t cmd);
 
   std::array<uint8_t, kSize> raw_ {};
 
   uint32_t gpu_gp0_ = 0;
   uint32_t gpu_gp1_ = 0;
   std::vector<uint32_t> gpu_gp0_fifo_;
+  std::vector<uint32_t> gpu_gp1_fifo_;
   uint32_t dma_active_channel_ = 0xFFFFFFFFu;
 
   uint16_t irq_stat_ = 0;
@@ -59,6 +70,18 @@ private:
 
   std::array<uint16_t, 0x200 / 2> spu_regs_ {};
   std::array<uint8_t, 4> cdrom_regs_ {};
+  CdromImage cdrom_image_;
+  std::vector<uint8_t> cdrom_param_fifo_;
+  std::vector<uint8_t> cdrom_response_fifo_;
+  std::vector<uint8_t> cdrom_data_fifo_;
+  uint8_t cdrom_index_ = 0;
+  uint8_t cdrom_status_ = 0;
+  uint8_t cdrom_irq_flags_ = 0;
+  uint8_t cdrom_irq_enable_ = 0;
+  uint8_t cdrom_mode_ = 0;
+  bool cdrom_error_ = false;
+  bool cdrom_reading_ = false;
+  uint32_t cdrom_lba_ = 0;
 
   bool timer_irq_enable_[3] = {};
   bool timer_irq_repeat_[3] = {};

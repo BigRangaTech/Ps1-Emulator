@@ -3,6 +3,8 @@ file(REMOVE_RECURSE
   "CMakeFiles/ps1emu_core.dir/src/core/app_paths.cpp.o.d"
   "CMakeFiles/ps1emu_core.dir/src/core/bios.cpp.o"
   "CMakeFiles/ps1emu_core.dir/src/core/bios.cpp.o.d"
+  "CMakeFiles/ps1emu_core.dir/src/core/cdrom_image.cpp.o"
+  "CMakeFiles/ps1emu_core.dir/src/core/cdrom_image.cpp.o.d"
   "CMakeFiles/ps1emu_core.dir/src/core/config.cpp.o"
   "CMakeFiles/ps1emu_core.dir/src/core/config.cpp.o.d"
   "CMakeFiles/ps1emu_core.dir/src/core/config_paths.cpp.o"

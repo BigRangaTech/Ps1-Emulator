@@ -9,6 +9,7 @@ void MmioBus::reset() {
   gpu_gp0_ = 0;
   gpu_gp1_ = 0x14802000;
   gpu_gp0_fifo_.clear();
+  gpu_gp1_fifo_.clear();
   irq_stat_ = 0;
   irq_mask_ = 0;
   std::memset(dma_madr_, 0, sizeof(dma_madr_));
@@ -21,11 +22,59 @@ void MmioBus::reset() {
   std::memset(timer_target_, 0, sizeof(timer_target_));
   std::memset(spu_regs_.data(), 0, spu_regs_.size() * sizeof(uint16_t));
   std::memset(cdrom_regs_.data(), 0, cdrom_regs_.size());
+  cdrom_param_fifo_.clear();
+  cdrom_response_fifo_.clear();
+  cdrom_data_fifo_.clear();
+  cdrom_index_ = 0;
+  cdrom_status_ = 0;
+  cdrom_irq_flags_ = 0;
+  cdrom_irq_enable_ = 0;
+  cdrom_mode_ = 0;
+  cdrom_error_ = false;
+  cdrom_reading_ = false;
+  cdrom_lba_ = 0;
   std::memset(timer_irq_enable_, 0, sizeof(timer_irq_enable_));
   std::memset(timer_irq_repeat_, 0, sizeof(timer_irq_repeat_));
   std::memset(timer_irq_on_overflow_, 0, sizeof(timer_irq_on_overflow_));
   std::memset(timer_irq_on_target_, 0, sizeof(timer_irq_on_target_));
   dma_active_channel_ = 0xFFFFFFFFu;
+}
+
+static uint8_t bcd_to_int(uint8_t value) {
+  return static_cast<uint8_t>(((value >> 4) & 0x0Fu) * 10 + (value & 0x0Fu));
+}
+
+static uint32_t bcd_to_lba(uint8_t mm, uint8_t ss, uint8_t ff) {
+  uint32_t m = bcd_to_int(mm);
+  uint32_t s = bcd_to_int(ss);
+  uint32_t f = bcd_to_int(ff);
+  uint32_t lba = (m * 60 + s) * 75 + f;
+  if (lba >= 150) {
+    lba -= 150;
+  } else {
+    lba = 0;
+  }
+  return lba;
+}
+
+static uint8_t cdrom_status_byte(bool has_disc,
+                                 bool reading,
+                                 bool data_ready,
+                                 bool error) {
+  uint8_t status = 0;
+  if (has_disc) {
+    status |= 0x02;
+  }
+  if (reading) {
+    status |= 0x10;
+  }
+  if (data_ready) {
+    status |= 0x20;
+  }
+  if (error) {
+    status |= 0x01;
+  }
+  return status;
 }
 
 static uint32_t recompute_dma_master(uint32_t dicr) {
@@ -41,11 +90,166 @@ static uint32_t recompute_dma_master(uint32_t dicr) {
   return dicr;
 }
 
+void MmioBus::cdrom_push_response(uint8_t value) {
+  cdrom_response_fifo_.push_back(value);
+}
+
+void MmioBus::cdrom_raise_irq(uint8_t flags) {
+  cdrom_irq_flags_ = flags;
+  irq_stat_ |= (1u << 2);
+}
+
+static bool cdrom_fill_data_fifo(CdromImage &image,
+                                 uint32_t &lba,
+                                 bool &error,
+                                 std::vector<uint8_t> &fifo) {
+  std::vector<uint8_t> sector;
+  if (!image.read_sector(lba, sector)) {
+    error = true;
+    return false;
+  }
+  fifo = std::move(sector);
+  lba += 1;
+  return true;
+}
+
+void MmioBus::cdrom_execute_command(uint8_t cmd) {
+  std::vector<uint8_t> params = cdrom_param_fifo_;
+  cdrom_param_fifo_.clear();
+
+  cdrom_error_ = false;
+  cdrom_response_fifo_.clear();
+
+  switch (cmd) {
+    case 0x01: { // Getstat
+      cdrom_push_response(cdrom_status_byte(cdrom_image_.loaded(),
+                                            cdrom_reading_,
+                                            !cdrom_data_fifo_.empty(),
+                                            cdrom_error_));
+      cdrom_raise_irq(0x01);
+      break;
+    }
+    case 0x02: { // Setloc
+      if (params.size() >= 3) {
+        cdrom_lba_ = bcd_to_lba(params[0], params[1], params[2]);
+      } else {
+        cdrom_error_ = true;
+      }
+      cdrom_push_response(cdrom_status_byte(cdrom_image_.loaded(),
+                                            cdrom_reading_,
+                                            !cdrom_data_fifo_.empty(),
+                                            cdrom_error_));
+      cdrom_raise_irq(0x01);
+      break;
+    }
+    case 0x06: // ReadN
+    case 0x1B: { // ReadS
+      cdrom_reading_ = true;
+      cdrom_data_fifo_.clear();
+      if (!cdrom_image_.loaded()) {
+        cdrom_error_ = true;
+      } else {
+        cdrom_fill_data_fifo(cdrom_image_, cdrom_lba_, cdrom_error_, cdrom_data_fifo_);
+      }
+      cdrom_push_response(cdrom_status_byte(cdrom_image_.loaded(),
+                                            cdrom_reading_,
+                                            !cdrom_data_fifo_.empty(),
+                                            cdrom_error_));
+      cdrom_raise_irq(0x01);
+      break;
+    }
+    case 0x09: { // Pause
+      cdrom_reading_ = false;
+      cdrom_push_response(cdrom_status_byte(cdrom_image_.loaded(),
+                                            cdrom_reading_,
+                                            !cdrom_data_fifo_.empty(),
+                                            cdrom_error_));
+      cdrom_raise_irq(0x01);
+      break;
+    }
+    case 0x0A: { // Init
+      cdrom_mode_ = 0;
+      cdrom_reading_ = false;
+      cdrom_push_response(cdrom_status_byte(cdrom_image_.loaded(),
+                                            cdrom_reading_,
+                                            !cdrom_data_fifo_.empty(),
+                                            cdrom_error_));
+      cdrom_raise_irq(0x01);
+      break;
+    }
+    case 0x0E: { // Setmode
+      if (!params.empty()) {
+        cdrom_mode_ = params[0];
+      }
+      cdrom_push_response(cdrom_status_byte(cdrom_image_.loaded(),
+                                            cdrom_reading_,
+                                            !cdrom_data_fifo_.empty(),
+                                            cdrom_error_));
+      cdrom_raise_irq(0x01);
+      break;
+    }
+    case 0x1A: { // GetID
+      cdrom_push_response(cdrom_status_byte(cdrom_image_.loaded(),
+                                            cdrom_reading_,
+                                            !cdrom_data_fifo_.empty(),
+                                            cdrom_error_));
+      cdrom_push_response(0x00);
+      cdrom_push_response(0x20);
+      cdrom_push_response(0x00);
+      cdrom_push_response(0x00);
+      cdrom_raise_irq(0x01);
+      break;
+    }
+    default: {
+      cdrom_error_ = true;
+      cdrom_push_response(cdrom_status_byte(cdrom_image_.loaded(),
+                                            cdrom_reading_,
+                                            !cdrom_data_fifo_.empty(),
+                                            cdrom_error_));
+      cdrom_raise_irq(0x01);
+      break;
+    }
+  }
+}
+
 uint32_t MmioBus::offset(uint32_t addr) const {
   return addr - kBase;
 }
 
 uint8_t MmioBus::read8(uint32_t addr) {
+  if (addr >= 0x1F801800 && addr < 0x1F801804) {
+    uint32_t reg = addr - 0x1F801800;
+    if (reg == 0) {
+      cdrom_status_ = cdrom_status_byte(cdrom_image_.loaded(),
+                                        cdrom_reading_,
+                                        !cdrom_data_fifo_.empty(),
+                                        cdrom_error_);
+      return static_cast<uint8_t>((cdrom_status_ & 0xFCu) | (cdrom_index_ & 0x03u));
+    }
+    if (reg == 1) {
+      if (!cdrom_response_fifo_.empty()) {
+        uint8_t value = cdrom_response_fifo_.front();
+        cdrom_response_fifo_.erase(cdrom_response_fifo_.begin());
+        return value;
+      }
+      return 0;
+    }
+    if (reg == 2) {
+      if (cdrom_data_fifo_.empty() && cdrom_reading_ && cdrom_image_.loaded() && !cdrom_error_) {
+        cdrom_fill_data_fifo(cdrom_image_, cdrom_lba_, cdrom_error_, cdrom_data_fifo_);
+      }
+      if (!cdrom_data_fifo_.empty()) {
+        uint8_t value = cdrom_data_fifo_.front();
+        cdrom_data_fifo_.erase(cdrom_data_fifo_.begin());
+        return value;
+      }
+      return 0;
+    }
+    if (reg == 3) {
+      return cdrom_irq_flags_;
+    }
+  }
+
   uint32_t off = offset(addr);
   if (off < kSize) {
     return raw_[off];
@@ -54,6 +258,12 @@ uint8_t MmioBus::read8(uint32_t addr) {
 }
 
 uint16_t MmioBus::read16(uint32_t addr) {
+  if (addr >= 0x1F801800 && addr < 0x1F801804) {
+    uint16_t lo = read8(addr);
+    uint16_t hi = read8(addr + 1);
+    return static_cast<uint16_t>(lo | (hi << 8));
+  }
+
   uint32_t off = offset(addr);
   if (off + 1 < kSize) {
     return static_cast<uint16_t>(raw_[off] | (raw_[off + 1] << 8));
@@ -65,6 +275,14 @@ uint32_t MmioBus::read32(uint32_t addr) {
   uint32_t off = offset(addr);
   if (off + 3 >= kSize) {
     return 0xFFFFFFFF;
+  }
+
+  if (addr >= 0x1F801800 && addr < 0x1F801804) {
+    uint32_t b0 = read8(addr);
+    uint32_t b1 = read8(addr + 1);
+    uint32_t b2 = read8(addr + 2);
+    uint32_t b3 = read8(addr + 3);
+    return b0 | (b1 << 8) | (b2 << 16) | (b3 << 24);
   }
 
   if (addr == 0x1F801070) { // I_STAT
@@ -137,6 +355,23 @@ uint32_t MmioBus::read32(uint32_t addr) {
 }
 
 void MmioBus::write8(uint32_t addr, uint8_t value) {
+  if (addr >= 0x1F801800 && addr < 0x1F801804) {
+    uint32_t reg = addr - 0x1F801800;
+    if (reg == 0) {
+      cdrom_index_ = value & 0x03u;
+    } else if (reg == 1) {
+      cdrom_execute_command(value);
+    } else if (reg == 2) {
+      cdrom_param_fifo_.push_back(value);
+    } else if (reg == 3) {
+      cdrom_irq_enable_ = static_cast<uint8_t>(value & 0x1Fu);
+      if (value & 0x1Fu) {
+        cdrom_irq_flags_ = 0;
+        irq_stat_ &= static_cast<uint16_t>(~(1u << 2));
+      }
+    }
+  }
+
   uint32_t off = offset(addr);
   if (off < kSize) {
     raw_[off] = value;
@@ -209,6 +444,7 @@ void MmioBus::write32(uint32_t addr, uint32_t value) {
     gpu_gp0_fifo_.push_back(value);
   } else if (addr == 0x1F801814) { // GPU GP1
     gpu_gp1_ = value;
+    gpu_gp1_fifo_.push_back(value);
   }
 
   if (addr >= 0x1F801080 && addr < 0x1F8010F0) {
@@ -355,6 +591,25 @@ void MmioBus::set_dma_madr(uint32_t channel, uint32_t value) {
   dma_madr_[channel] = value;
 }
 
+bool MmioBus::load_cdrom_image(const std::string &path, std::string &error) {
+  return cdrom_image_.load(path, error);
+}
+
+size_t MmioBus::read_cdrom_data(uint8_t *dst, size_t len) {
+  size_t read = 0;
+  while (read < len) {
+    if (cdrom_data_fifo_.empty() && cdrom_reading_ && cdrom_image_.loaded() && !cdrom_error_) {
+      cdrom_fill_data_fifo(cdrom_image_, cdrom_lba_, cdrom_error_, cdrom_data_fifo_);
+    }
+    if (cdrom_data_fifo_.empty()) {
+      break;
+    }
+    dst[read++] = cdrom_data_fifo_.front();
+    cdrom_data_fifo_.erase(cdrom_data_fifo_.begin());
+  }
+  return read;
+}
+
 bool MmioBus::has_gpu_commands() const {
   return !gpu_gp0_fifo_.empty();
 }
@@ -367,6 +622,16 @@ std::vector<uint32_t> MmioBus::take_gpu_commands() {
 
 void MmioBus::restore_gpu_commands(std::vector<uint32_t> remainder) {
   gpu_gp0_fifo_ = std::move(remainder);
+}
+
+bool MmioBus::has_gpu_control() const {
+  return !gpu_gp1_fifo_.empty();
+}
+
+std::vector<uint32_t> MmioBus::take_gpu_control() {
+  std::vector<uint32_t> out;
+  out.swap(gpu_gp1_fifo_);
+  return out;
 }
 
 } // namespace ps1emu
