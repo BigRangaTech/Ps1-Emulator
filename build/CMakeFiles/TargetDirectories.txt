@@ -1,0 +1,8 @@
+/home/jessie/Documents/Ps1-Emulator/build/CMakeFiles/ps1emu_core.dir
+/home/jessie/Documents/Ps1-Emulator/build/CMakeFiles/ps1emu.dir
+/home/jessie/Documents/Ps1-Emulator/build/CMakeFiles/ps1emu_gpu_stub.dir
+/home/jessie/Documents/Ps1-Emulator/build/CMakeFiles/ps1emu_spu_stub.dir
+/home/jessie/Documents/Ps1-Emulator/build/CMakeFiles/ps1emu_input_stub.dir
+/home/jessie/Documents/Ps1-Emulator/build/CMakeFiles/ps1emu_cdrom_stub.dir
+/home/jessie/Documents/Ps1-Emulator/build/CMakeFiles/edit_cache.dir
+/home/jessie/Documents/Ps1-Emulator/build/CMakeFiles/rebuild_cache.dir

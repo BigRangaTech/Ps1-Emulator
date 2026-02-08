@@ -1,0 +1,1 @@
+/usr/bin/c++ -Wl,--dependency-file=CMakeFiles/ps1emu_cdrom_stub.dir/link.d CMakeFiles/ps1emu_cdrom_stub.dir/plugins/cdrom_stub/main.cpp.o -o ps1emu_cdrom_stub

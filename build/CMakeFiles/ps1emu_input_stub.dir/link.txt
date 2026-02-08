@@ -1,0 +1,1 @@
+/usr/bin/c++ -Wl,--dependency-file=CMakeFiles/ps1emu_input_stub.dir/link.d CMakeFiles/ps1emu_input_stub.dir/plugins/input_stub/main.cpp.o -o ps1emu_input_stub
