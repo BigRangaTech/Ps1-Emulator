@@ -21,6 +21,10 @@ void MmioBus::reset() {
   std::memset(timer_target_, 0, sizeof(timer_target_));
   std::memset(spu_regs_.data(), 0, spu_regs_.size() * sizeof(uint16_t));
   std::memset(cdrom_regs_.data(), 0, cdrom_regs_.size());
+  std::memset(timer_irq_enable_, 0, sizeof(timer_irq_enable_));
+  std::memset(timer_irq_repeat_, 0, sizeof(timer_irq_repeat_));
+  std::memset(timer_irq_on_overflow_, 0, sizeof(timer_irq_on_overflow_));
+  dma_active_channel_ = 0xFFFFFFFFu;
 }
 
 uint32_t MmioBus::offset(uint32_t addr) const {
@@ -151,6 +155,15 @@ void MmioBus::write16(uint32_t addr, uint16_t value) {
         timer_count_[timer] = value;
       } else if (reg == 0x4) {
         timer_mode_[timer] = value;
+        timer_irq_enable_[timer] = (value & (1u << 4)) != 0;
+        timer_irq_repeat_[timer] = (value & (1u << 5)) != 0;
+        timer_irq_on_overflow_[timer] = (value & (1u << 6)) != 0;
+        if (value & (1u << 3)) {
+          timer_count_[timer] = 0;
+        }
+        if (value & (1u << 7)) {
+          irq_stat_ &= static_cast<uint16_t>(~(1u << (4 + timer)));
+        }
       } else if (reg == 0x8) {
         timer_target_[timer] = value;
       }
@@ -194,8 +207,7 @@ void MmioBus::write32(uint32_t addr, uint32_t value) {
       } else if (reg == 0x8) {
         dma_chcr_[index] = value;
         if (value & (1u << 24)) {
-          irq_stat_ |= (1u << 3); // DMA IRQ
-          dma_chcr_[index] &= ~(1u << 24);
+          dma_active_channel_ = index;
         }
       }
     }
@@ -243,14 +255,72 @@ bool MmioBus::irq_pending() const {
 void MmioBus::tick(uint32_t cycles) {
   for (int i = 0; i < 3; ++i) {
     uint32_t before = timer_count_[i];
+    uint16_t mode = timer_mode_[i];
+    if (mode & (1u << 2)) { // halted
+      continue;
+    }
     uint32_t after = (before + cycles) & 0xFFFFu;
     timer_count_[i] = static_cast<uint16_t>(after);
     uint16_t target = timer_target_[i];
     if (target != 0 && before < target && after >= target) {
-      irq_stat_ |= static_cast<uint16_t>(1u << (4 + i));
-      timer_count_[i] = 0;
+      if (timer_irq_enable_[i]) {
+        irq_stat_ |= static_cast<uint16_t>(1u << (4 + i));
+      }
+      if (mode & (1u << 3)) { // reset on target
+        timer_count_[i] = 0;
+      }
+      if (!timer_irq_repeat_[i]) {
+        timer_irq_enable_[i] = false;
+      }
+    }
+    if (before > after && timer_irq_on_overflow_[i]) {
+      if (timer_irq_enable_[i]) {
+        irq_stat_ |= static_cast<uint16_t>(1u << (4 + i));
+      }
+      if (!timer_irq_repeat_[i]) {
+        timer_irq_enable_[i] = false;
+      }
     }
   }
+}
+
+uint32_t MmioBus::consume_dma_channel() {
+  uint32_t channel = dma_active_channel_;
+  dma_active_channel_ = 0xFFFFFFFFu;
+  if (channel < 7) {
+    irq_stat_ |= (1u << 3); // DMA IRQ
+    dma_chcr_[channel] &= ~(1u << 24);
+    return channel;
+  }
+  return 0xFFFFFFFFu;
+}
+
+uint32_t MmioBus::dma_madr(uint32_t channel) const {
+  if (channel >= 7) {
+    return 0;
+  }
+  return dma_madr_[channel];
+}
+
+uint32_t MmioBus::dma_bcr(uint32_t channel) const {
+  if (channel >= 7) {
+    return 0;
+  }
+  return dma_bcr_[channel];
+}
+
+uint32_t MmioBus::dma_chcr(uint32_t channel) const {
+  if (channel >= 7) {
+    return 0;
+  }
+  return dma_chcr_[channel];
+}
+
+void MmioBus::set_dma_madr(uint32_t channel, uint32_t value) {
+  if (channel >= 7) {
+    return;
+  }
+  dma_madr_[channel] = value;
 }
 
 bool MmioBus::has_gpu_commands() const {
@@ -261,6 +331,10 @@ std::vector<uint32_t> MmioBus::take_gpu_commands() {
   std::vector<uint32_t> out;
   out.swap(gpu_gp0_fifo_);
   return out;
+}
+
+void MmioBus::restore_gpu_commands(std::vector<uint32_t> remainder) {
+  gpu_gp0_fifo_ = std::move(remainder);
 }
 
 } // namespace ps1emu

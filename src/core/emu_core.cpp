@@ -1,5 +1,7 @@
 #include "core/emu_core.h"
 
+#include "core/gpu_packets.h"
+
 #include <iostream>
 
 namespace ps1emu {
@@ -48,6 +50,7 @@ void EmulatorCore::run_for_cycles(uint32_t cycles) {
   for (uint32_t i = 0; i < cycles; ++i) {
     uint32_t step_cycles = cpu_.step();
     mmio_.tick(step_cycles);
+    process_dma();
     flush_gpu_commands();
   }
 }
@@ -61,24 +64,83 @@ void EmulatorCore::flush_gpu_commands() {
     return;
   }
 
-  std::vector<uint8_t> payload;
-  payload.reserve(commands.size() * sizeof(uint32_t));
-  for (uint32_t word : commands) {
-    payload.push_back(static_cast<uint8_t>(word & 0xFF));
-    payload.push_back(static_cast<uint8_t>((word >> 8) & 0xFF));
-    payload.push_back(static_cast<uint8_t>((word >> 16) & 0xFF));
-    payload.push_back(static_cast<uint8_t>((word >> 24) & 0xFF));
+  std::vector<uint32_t> remainder;
+  std::vector<GpuPacket> packets = parse_gp0_packets(commands, remainder);
+  if (!remainder.empty()) {
+    mmio_.restore_gpu_commands(std::move(remainder));
   }
 
-  if (!plugin_host_.send_frame(PluginType::Gpu, 0x0001, payload)) {
-    std::cerr << "Failed to send GPU command frame\n";
+  for (const auto &packet : packets) {
+    std::vector<uint8_t> payload;
+    payload.reserve(packet.words.size() * sizeof(uint32_t));
+    for (uint32_t word : packet.words) {
+      payload.push_back(static_cast<uint8_t>(word & 0xFF));
+      payload.push_back(static_cast<uint8_t>((word >> 8) & 0xFF));
+      payload.push_back(static_cast<uint8_t>((word >> 16) & 0xFF));
+      payload.push_back(static_cast<uint8_t>((word >> 24) & 0xFF));
+    }
+
+    if (!plugin_host_.send_frame(PluginType::Gpu, 0x0001, payload)) {
+      std::cerr << "Failed to send GPU command frame\n";
+      return;
+    }
+
+    uint16_t reply_type = 0;
+    std::vector<uint8_t> reply_payload;
+    if (!plugin_host_.recv_frame(PluginType::Gpu, reply_type, reply_payload) || reply_type != 0x0002) {
+      std::cerr << "GPU command frame not acknowledged\n";
+      return;
+    }
+  }
+}
+
+void EmulatorCore::process_dma() {
+  uint32_t channel = mmio_.consume_dma_channel();
+  if (channel == 0xFFFFFFFFu) {
     return;
   }
 
-  uint16_t reply_type = 0;
-  std::vector<uint8_t> reply_payload;
-  if (!plugin_host_.recv_frame(PluginType::Gpu, reply_type, reply_payload) || reply_type != 0x0002) {
-    std::cerr << "GPU command frame not acknowledged\n";
+  // Basic DMA behavior: channel 2 (GPU) forwards words from RAM to GP0 FIFO.
+  if (channel == 2) {
+    uint32_t madr = mmio_.dma_madr(channel) & 0x1FFFFC;
+    uint32_t bcr = mmio_.dma_bcr(channel);
+    uint32_t chcr = mmio_.dma_chcr(channel);
+    uint32_t block_size = bcr & 0xFFFF;
+    uint32_t block_count = (bcr >> 16) & 0xFFFF;
+    uint32_t total_words = block_size * (block_count ? block_count : 1);
+    if (total_words == 0) {
+      total_words = block_size;
+    }
+    if (total_words == 0) {
+      total_words = 1;
+    }
+    bool decrement = (chcr & (1u << 1)) != 0;
+
+    std::vector<uint8_t> payload;
+    payload.reserve(total_words * 4);
+    for (uint32_t i = 0; i < total_words; ++i) {
+      uint32_t addr = decrement ? (madr - i * 4) : (madr + i * 4);
+      uint32_t word = memory_.read32(addr);
+      payload.push_back(static_cast<uint8_t>(word & 0xFF));
+      payload.push_back(static_cast<uint8_t>((word >> 8) & 0xFF));
+      payload.push_back(static_cast<uint8_t>((word >> 16) & 0xFF));
+      payload.push_back(static_cast<uint8_t>((word >> 24) & 0xFF));
+    }
+
+    if (decrement) {
+      mmio_.set_dma_madr(channel, madr - total_words * 4);
+    } else {
+      mmio_.set_dma_madr(channel, madr + total_words * 4);
+    }
+    if (!plugin_host_.send_frame(PluginType::Gpu, 0x0001, payload)) {
+      std::cerr << "DMA GPU frame send failed\n";
+    } else {
+      uint16_t reply_type = 0;
+      std::vector<uint8_t> reply_payload;
+      if (!plugin_host_.recv_frame(PluginType::Gpu, reply_type, reply_payload) || reply_type != 0x0002) {
+        std::cerr << "DMA GPU frame not acknowledged\n";
+      }
+    }
   }
 }
 

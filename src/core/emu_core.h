@@ -26,6 +26,7 @@ public:
 
 private:
   void flush_gpu_commands();
+  void process_dma();
 
   bool load_and_apply_config(const std::string &config_path);
   CpuCore::Mode resolve_cpu_mode() const;

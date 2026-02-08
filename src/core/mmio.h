@@ -22,6 +22,12 @@ public:
   void tick(uint32_t cycles);
   bool has_gpu_commands() const;
   std::vector<uint32_t> take_gpu_commands();
+  void restore_gpu_commands(std::vector<uint32_t> remainder);
+  uint32_t consume_dma_channel();
+  uint32_t dma_madr(uint32_t channel) const;
+  uint32_t dma_bcr(uint32_t channel) const;
+  uint32_t dma_chcr(uint32_t channel) const;
+  void set_dma_madr(uint32_t channel, uint32_t value);
 
 private:
   static constexpr uint32_t kBase = 0x1F801000;
@@ -34,6 +40,7 @@ private:
   uint32_t gpu_gp0_ = 0;
   uint32_t gpu_gp1_ = 0;
   std::vector<uint32_t> gpu_gp0_fifo_;
+  uint32_t dma_active_channel_ = 0xFFFFFFFFu;
 
   uint16_t irq_stat_ = 0;
   uint16_t irq_mask_ = 0;
@@ -50,6 +57,10 @@ private:
 
   std::array<uint16_t, 0x200 / 2> spu_regs_ {};
   std::array<uint8_t, 4> cdrom_regs_ {};
+
+  bool timer_irq_enable_[3] = {};
+  bool timer_irq_repeat_[3] = {};
+  bool timer_irq_on_overflow_[3] = {};
 };
 
 } // namespace ps1emu

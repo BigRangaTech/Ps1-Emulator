@@ -16,6 +16,7 @@ add_library(ps1emu_core
   src/core/dynarec.cpp
   src/core/emu_core.cpp
   src/core/gpu_commands.cpp
+  src/core/gpu_packets.cpp
   src/core/memory_map.cpp
   src/core/mmio.cpp
   src/core/scheduler.cpp

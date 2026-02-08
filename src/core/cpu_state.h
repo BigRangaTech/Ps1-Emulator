@@ -18,6 +18,7 @@ struct CpuState {
     uint32_t epc = 0;
     uint32_t badvaddr = 0;
     uint32_t prid = 0x00000002;
+    uint32_t ebase = 0x80000000;
   } cop0;
 };
 

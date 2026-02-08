@@ -79,8 +79,10 @@ uint32_t CpuCore::step_interpreter() {
   uint32_t cycles = execute_instruction(instr, instr_pc, in_delay, new_load, branch_now, exception);
 
   branch_pending_ = branch_now;
-  if (!exception) {
+  if (!exception && new_load.valid) {
     load_delay_ = new_load;
+  } else if (exception) {
+    load_delay_ = {};
   }
   state_.gpr[0] = 0;
 
@@ -145,8 +147,14 @@ void CpuCore::raise_exception(uint32_t excode, uint32_t badaddr, bool in_delay, 
   }
   state_.cop0.badvaddr = badaddr;
   state_.cop0.sr |= (1u << 1);
-  uint32_t vector = (state_.cop0.sr & (1u << 22)) ? 0xBFC00180 : 0x80000080;
-  state_.pc = vector;
+  state_.cop0.sr &= ~(1u << 0);
+  if (in_delay) {
+    state_.cop0.cause |= (1u << 31);
+  } else {
+    state_.cop0.cause &= ~(1u << 31);
+  }
+  uint32_t base = (state_.cop0.sr & (1u << 22)) ? 0xBFC00000 : state_.cop0.ebase;
+  state_.pc = base + 0x80;
   state_.next_pc = state_.pc + 4;
   branch_pending_ = false;
 }
@@ -154,8 +162,12 @@ void CpuCore::raise_exception(uint32_t excode, uint32_t badaddr, bool in_delay, 
 bool CpuCore::check_interrupts() {
   bool ie = (state_.cop0.sr & 0x1) != 0;
   bool exl = (state_.cop0.sr & (1u << 1)) != 0;
-  if (ie && !exl && memory_ && memory_->irq_pending()) {
+  if (memory_ && memory_->irq_pending()) {
     state_.cop0.cause |= (1u << 10);
+  } else {
+    state_.cop0.cause &= ~(1u << 10);
+  }
+  if (ie && !exl && memory_ && memory_->irq_pending()) {
     raise_exception(0, 0, false, state_.pc);
     return true;
   }
@@ -450,9 +462,18 @@ uint32_t CpuCore::execute_instruction(uint32_t instr,
         out_load = {true, rt, 0};
       } else if (cop_op == 0x04) { // MTC2
         // ignore for now
+      } else if (cop_op == 0x02) { // CFC2
+        out_load = {true, rt, 0};
+      } else if (cop_op == 0x06) { // CTC2
+        // ignore for now
       } else {
         // GTE command, not implemented yet.
       }
+      break;
+    }
+    case 0x13: { // COP3
+      raise_exception(11, 0, in_delay, instr_pc);
+      out_exception = true;
       break;
     }
     case 0x10: { // COP0
@@ -462,11 +483,24 @@ uint32_t CpuCore::execute_instruction(uint32_t instr,
         state_.cop0.sr = (state_.cop0.sr & ~0x3F) | ((mode >> 2) & 0x0F);
         break;
       }
+      if (cop_op == 0x02) { // CFC0
+        out_load = {true, rt, 0};
+        break;
+      }
+      if (cop_op == 0x06) { // CTC0
+        break;
+      }
       if (cop_op == 0x00) { // MFC0
         uint32_t value = 0;
         switch (rd) {
           case 8:
             value = state_.cop0.badvaddr;
+            break;
+          case 9:
+            value = 0;
+            break;
+          case 11:
+            value = 0;
             break;
           case 12:
             value = state_.cop0.sr;
@@ -480,6 +514,9 @@ uint32_t CpuCore::execute_instruction(uint32_t instr,
           case 15:
             value = state_.cop0.prid;
             break;
+          case 16:
+            value = state_.cop0.ebase;
+            break;
           default:
             value = 0;
             break;
@@ -491,6 +528,10 @@ uint32_t CpuCore::execute_instruction(uint32_t instr,
           case 8:
             state_.cop0.badvaddr = value;
             break;
+          case 9:
+            break;
+          case 11:
+            break;
           case 12:
             state_.cop0.sr = value;
             break;
@@ -500,6 +541,9 @@ uint32_t CpuCore::execute_instruction(uint32_t instr,
           case 14:
             state_.cop0.epc = value;
             break;
+          case 16:
+            state_.cop0.ebase = (value & 0xFFFFF000u);
+            break;
           default:
             break;
         }
@@ -507,16 +551,6 @@ uint32_t CpuCore::execute_instruction(uint32_t instr,
         raise_exception(10, 0, in_delay, instr_pc);
         out_exception = true;
       }
-      break;
-    }
-    case 0x32: { // LWC2
-      uint32_t addr = read_reg(rs) + imm_se;
-      (void)memory_->read32(addr);
-      break;
-    }
-    case 0x3A: { // SWC2
-      uint32_t addr = read_reg(rs) + imm_se;
-      (void)addr;
       break;
     }
     case 0x20: { // LB
@@ -672,6 +706,98 @@ uint32_t CpuCore::execute_instruction(uint32_t instr,
           break;
       }
       memory_->write32(aligned, word);
+      break;
+    }
+    case 0x30: { // LWC0
+      uint32_t addr = read_reg(rs) + imm_se;
+      if (addr & 3) {
+        raise_exception(4, addr, in_delay, instr_pc);
+        out_exception = true;
+        break;
+      }
+      (void)memory_->read32(addr);
+      raise_exception(11, 0, in_delay, instr_pc);
+      out_exception = true;
+      break;
+    }
+    case 0x31: { // LWC1
+      uint32_t addr = read_reg(rs) + imm_se;
+      if (addr & 3) {
+        raise_exception(4, addr, in_delay, instr_pc);
+        out_exception = true;
+        break;
+      }
+      (void)memory_->read32(addr);
+      raise_exception(11, 0, in_delay, instr_pc);
+      out_exception = true;
+      break;
+    }
+    case 0x32: { // LWC2
+      uint32_t addr = read_reg(rs) + imm_se;
+      if (addr & 3) {
+        raise_exception(4, addr, in_delay, instr_pc);
+        out_exception = true;
+        break;
+      }
+      (void)memory_->read32(addr);
+      break;
+    }
+    case 0x33: { // LWC3
+      uint32_t addr = read_reg(rs) + imm_se;
+      if (addr & 3) {
+        raise_exception(4, addr, in_delay, instr_pc);
+        out_exception = true;
+        break;
+      }
+      (void)memory_->read32(addr);
+      raise_exception(11, 0, in_delay, instr_pc);
+      out_exception = true;
+      break;
+    }
+    case 0x38: { // SWC0
+      uint32_t addr = read_reg(rs) + imm_se;
+      if (addr & 3) {
+        raise_exception(5, addr, in_delay, instr_pc);
+        out_exception = true;
+        break;
+      }
+      (void)addr;
+      raise_exception(11, 0, in_delay, instr_pc);
+      out_exception = true;
+      break;
+    }
+    case 0x39: { // SWC1
+      uint32_t addr = read_reg(rs) + imm_se;
+      if (addr & 3) {
+        raise_exception(5, addr, in_delay, instr_pc);
+        out_exception = true;
+        break;
+      }
+      (void)addr;
+      raise_exception(11, 0, in_delay, instr_pc);
+      out_exception = true;
+      break;
+    }
+    case 0x3A: { // SWC2
+      uint32_t addr = read_reg(rs) + imm_se;
+      if (addr & 3) {
+        raise_exception(5, addr, in_delay, instr_pc);
+        out_exception = true;
+        break;
+      }
+      (void)addr;
+      break;
+    }
+    case 0x3B: { // SWC3
+      uint32_t addr = read_reg(rs) + imm_se;
+      if (addr & 3) {
+        raise_exception(5, addr, in_delay, instr_pc);
+        out_exception = true;
+        break;
+      }
+      (void)addr;
+      raise_exception(11, 0, in_delay, instr_pc);
+      out_exception = true;
       break;
     }
     default:
