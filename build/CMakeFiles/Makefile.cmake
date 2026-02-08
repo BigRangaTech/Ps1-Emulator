@@ -59,6 +59,7 @@ set(CMAKE_MAKEFILE_PRODUCTS
 set(CMAKE_DEPEND_INFO_FILES
   "CMakeFiles/ps1emu_core.dir/DependInfo.cmake"
   "CMakeFiles/ps1emu.dir/DependInfo.cmake"
+  "CMakeFiles/ps1emu_tests.dir/DependInfo.cmake"
   "CMakeFiles/ps1emu_gpu_stub.dir/DependInfo.cmake"
   "CMakeFiles/ps1emu_spu_stub.dir/DependInfo.cmake"
   "CMakeFiles/ps1emu_input_stub.dir/DependInfo.cmake"

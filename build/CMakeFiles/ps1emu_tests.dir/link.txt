@@ -1,0 +1,1 @@
+/usr/bin/c++ -Wl,--dependency-file=CMakeFiles/ps1emu_tests.dir/link.d CMakeFiles/ps1emu_tests.dir/tests/emulator_tests.cpp.o -o ps1emu_tests  libps1emu_core.a

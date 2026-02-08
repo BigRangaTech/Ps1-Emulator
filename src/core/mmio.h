@@ -19,6 +19,8 @@ public:
   void write16(uint32_t addr, uint16_t value);
   void write32(uint32_t addr, uint32_t value);
   bool irq_pending() const;
+  uint16_t irq_stat() const;
+  uint16_t irq_mask() const;
   void tick(uint32_t cycles);
   bool has_gpu_commands() const;
   std::vector<uint32_t> take_gpu_commands();
@@ -61,6 +63,7 @@ private:
   bool timer_irq_enable_[3] = {};
   bool timer_irq_repeat_[3] = {};
   bool timer_irq_on_overflow_[3] = {};
+  bool timer_irq_on_target_[3] = {};
 };
 
 } // namespace ps1emu

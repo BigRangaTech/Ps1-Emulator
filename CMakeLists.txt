@@ -37,6 +37,10 @@ target_link_libraries(ps1emu PRIVATE ps1emu_core)
 
 target_compile_options(ps1emu PRIVATE -Wall -Wextra -Wpedantic)
 
+add_executable(ps1emu_tests tests/emulator_tests.cpp)
+target_link_libraries(ps1emu_tests PRIVATE ps1emu_core)
+target_compile_options(ps1emu_tests PRIVATE -Wall -Wextra -Wpedantic)
+
 add_executable(ps1emu_gpu_stub plugins/gpu_stub/main.cpp)
 add_executable(ps1emu_spu_stub plugins/spu_stub/main.cpp)
 add_executable(ps1emu_input_stub plugins/input_stub/main.cpp)

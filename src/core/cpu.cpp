@@ -16,6 +16,9 @@ void CpuCore::reset() {
   state_.pc = 0xBFC00000;
   state_.next_pc = state_.pc + 4;
   load_delay_ = {};
+  load_delay_shadow_valid_ = false;
+  load_delay_shadow_reg_ = 0;
+  load_delay_shadow_value_ = 0;
   branch_pending_ = false;
   dynarec_cache_.invalidate_all();
 }
@@ -52,12 +55,19 @@ void CpuCore::invalidate_code_range(uint32_t start, uint32_t size) {
 }
 
 uint32_t CpuCore::step_interpreter() {
+  load_delay_shadow_valid_ = false;
   if (load_delay_.valid) {
-    write_reg(load_delay_.reg, load_delay_.value);
+    if (load_delay_.reg != 0) {
+      load_delay_shadow_valid_ = true;
+      load_delay_shadow_reg_ = load_delay_.reg;
+      load_delay_shadow_value_ = state_.gpr[load_delay_.reg];
+      write_reg(load_delay_.reg, load_delay_.value);
+    }
     load_delay_ = {};
   }
 
   if (check_interrupts()) {
+    load_delay_shadow_valid_ = false;
     if (scheduler_) {
       scheduler_->advance(1);
     }
@@ -78,7 +88,7 @@ uint32_t CpuCore::step_interpreter() {
 
   uint32_t cycles = execute_instruction(instr, instr_pc, in_delay, new_load, branch_now, exception);
 
-  branch_pending_ = branch_now;
+  branch_pending_ = branch_now && !exception;
   if (!exception && new_load.valid) {
     load_delay_ = new_load;
   } else if (exception) {
@@ -86,6 +96,7 @@ uint32_t CpuCore::step_interpreter() {
   }
   state_.gpr[0] = 0;
 
+  load_delay_shadow_valid_ = false;
   if (scheduler_) {
     scheduler_->advance(cycles);
   }
@@ -118,6 +129,9 @@ uint32_t CpuCore::read_reg(uint32_t index) const {
   if (index == 0) {
     return 0;
   }
+  if (load_delay_shadow_valid_ && index == load_delay_shadow_reg_) {
+    return load_delay_shadow_value_;
+  }
   return state_.gpr[index];
 }
 
@@ -136,12 +150,16 @@ static uint32_t sign_extend16(uint16_t value) {
   return static_cast<uint32_t>(static_cast<int32_t>(static_cast<int16_t>(value)));
 }
 
-void CpuCore::raise_exception(uint32_t excode, uint32_t badaddr, bool in_delay, uint32_t instr_pc) {
+void CpuCore::raise_exception(uint32_t excode,
+                              uint32_t badaddr,
+                              bool in_delay,
+                              uint32_t instr_pc,
+                              uint32_t epc_pc) {
   uint32_t ip_bits = state_.cop0.cause & 0x0000FF00;
   state_.cop0.cause = ip_bits | (excode << 2);
   if (in_delay) {
     state_.cop0.cause |= (1u << 31);
-    state_.cop0.epc = instr_pc - 4;
+    state_.cop0.epc = epc_pc;
   } else {
     state_.cop0.epc = instr_pc;
   }
@@ -162,13 +180,15 @@ void CpuCore::raise_exception(uint32_t excode, uint32_t badaddr, bool in_delay, 
 bool CpuCore::check_interrupts() {
   bool ie = (state_.cop0.sr & 0x1) != 0;
   bool exl = (state_.cop0.sr & (1u << 1)) != 0;
-  if (memory_ && memory_->irq_pending()) {
-    state_.cop0.cause |= (1u << 10);
-  } else {
-    state_.cop0.cause &= ~(1u << 10);
+  if (memory_) {
+    uint32_t bits = (static_cast<uint32_t>(memory_->irq_stat()) &
+                     static_cast<uint32_t>(memory_->irq_mask())) &
+                    0x3F;
+    state_.cop0.cause &= ~(0x3F << 10);
+    state_.cop0.cause |= (bits << 10);
   }
   if (ie && !exl && memory_ && memory_->irq_pending()) {
-    raise_exception(0, 0, false, state_.pc);
+    raise_exception(0, 0, false, state_.pc, state_.pc);
     return true;
   }
   return false;
@@ -224,11 +244,11 @@ uint32_t CpuCore::execute_instruction(uint32_t instr,
           out_branch = true;
           break;
         case 0x0C: // SYSCALL
-          raise_exception(8, 0, in_delay, instr_pc);
+          raise_exception(8, 0, in_delay, instr_pc, in_delay ? (instr_pc - 4) : instr_pc);
           out_exception = true;
           break;
         case 0x0D: // BREAK
-          raise_exception(9, 0, in_delay, instr_pc);
+          raise_exception(9, 0, in_delay, instr_pc, in_delay ? (instr_pc - 4) : instr_pc);
           out_exception = true;
           break;
         case 0x10: // MFHI
@@ -288,7 +308,7 @@ uint32_t CpuCore::execute_instruction(uint32_t instr,
           int32_t b = static_cast<int32_t>(read_reg(rt));
           int32_t res = a + b;
           if (((a ^ res) & (b ^ res)) < 0) {
-            raise_exception(12, 0, in_delay, instr_pc);
+            raise_exception(12, 0, in_delay, instr_pc, in_delay ? (instr_pc - 4) : instr_pc);
             out_exception = true;
           } else {
             write_reg(rd, static_cast<uint32_t>(res));
@@ -303,7 +323,7 @@ uint32_t CpuCore::execute_instruction(uint32_t instr,
           int32_t b = static_cast<int32_t>(read_reg(rt));
           int32_t res = a - b;
           if (((a ^ b) & (a ^ res)) < 0) {
-            raise_exception(12, 0, in_delay, instr_pc);
+            raise_exception(12, 0, in_delay, instr_pc, in_delay ? (instr_pc - 4) : instr_pc);
             out_exception = true;
           } else {
             write_reg(rd, static_cast<uint32_t>(res));
@@ -338,7 +358,7 @@ uint32_t CpuCore::execute_instruction(uint32_t instr,
           break;
         }
         default:
-          raise_exception(10, 0, in_delay, instr_pc);
+          raise_exception(10, 0, in_delay, instr_pc, in_delay ? (instr_pc - 4) : instr_pc);
           out_exception = true;
           break;
       }
@@ -370,7 +390,7 @@ uint32_t CpuCore::execute_instruction(uint32_t instr,
         }
         out_branch = true;
       } else {
-        raise_exception(10, 0, in_delay, instr_pc);
+        raise_exception(10, 0, in_delay, instr_pc, in_delay ? (instr_pc - 4) : instr_pc);
         out_exception = true;
       }
       break;
@@ -421,7 +441,7 @@ uint32_t CpuCore::execute_instruction(uint32_t instr,
       int32_t b = static_cast<int32_t>(imm_se);
       int32_t res = a + b;
       if (((a ^ res) & (b ^ res)) < 0) {
-        raise_exception(12, 0, in_delay, instr_pc);
+        raise_exception(12, 0, in_delay, instr_pc, in_delay ? (instr_pc - 4) : instr_pc);
         out_exception = true;
       } else {
         write_reg(rt, static_cast<uint32_t>(res));
@@ -472,7 +492,7 @@ uint32_t CpuCore::execute_instruction(uint32_t instr,
       break;
     }
     case 0x13: { // COP3
-      raise_exception(11, 0, in_delay, instr_pc);
+      raise_exception(11, 0, in_delay, instr_pc, in_delay ? (instr_pc - 4) : instr_pc);
       out_exception = true;
       break;
     }
@@ -548,7 +568,7 @@ uint32_t CpuCore::execute_instruction(uint32_t instr,
             break;
         }
       } else {
-        raise_exception(10, 0, in_delay, instr_pc);
+        raise_exception(10, 0, in_delay, instr_pc, in_delay ? (instr_pc - 4) : instr_pc);
         out_exception = true;
       }
       break;
@@ -562,7 +582,7 @@ uint32_t CpuCore::execute_instruction(uint32_t instr,
     case 0x21: { // LH
       uint32_t addr = read_reg(rs) + imm_se;
       if (addr & 1) {
-        raise_exception(4, addr, in_delay, instr_pc);
+        raise_exception(4, addr, in_delay, instr_pc, in_delay ? (instr_pc - 4) : instr_pc);
         out_exception = true;
         break;
       }
@@ -595,7 +615,7 @@ uint32_t CpuCore::execute_instruction(uint32_t instr,
     case 0x23: { // LW
       uint32_t addr = read_reg(rs) + imm_se;
       if (addr & 3) {
-        raise_exception(4, addr, in_delay, instr_pc);
+        raise_exception(4, addr, in_delay, instr_pc, in_delay ? (instr_pc - 4) : instr_pc);
         out_exception = true;
         break;
       }
@@ -610,7 +630,7 @@ uint32_t CpuCore::execute_instruction(uint32_t instr,
     case 0x25: { // LHU
       uint32_t addr = read_reg(rs) + imm_se;
       if (addr & 1) {
-        raise_exception(4, addr, in_delay, instr_pc);
+        raise_exception(4, addr, in_delay, instr_pc, in_delay ? (instr_pc - 4) : instr_pc);
         out_exception = true;
         break;
       }
@@ -647,7 +667,7 @@ uint32_t CpuCore::execute_instruction(uint32_t instr,
     case 0x29: { // SH
       uint32_t addr = read_reg(rs) + imm_se;
       if (addr & 1) {
-        raise_exception(5, addr, in_delay, instr_pc);
+        raise_exception(5, addr, in_delay, instr_pc, in_delay ? (instr_pc - 4) : instr_pc);
         out_exception = true;
         break;
       }
@@ -679,7 +699,7 @@ uint32_t CpuCore::execute_instruction(uint32_t instr,
     case 0x2B: { // SW
       uint32_t addr = read_reg(rs) + imm_se;
       if (addr & 3) {
-        raise_exception(5, addr, in_delay, instr_pc);
+        raise_exception(5, addr, in_delay, instr_pc, in_delay ? (instr_pc - 4) : instr_pc);
         out_exception = true;
         break;
       }
@@ -711,31 +731,31 @@ uint32_t CpuCore::execute_instruction(uint32_t instr,
     case 0x30: { // LWC0
       uint32_t addr = read_reg(rs) + imm_se;
       if (addr & 3) {
-        raise_exception(4, addr, in_delay, instr_pc);
+        raise_exception(4, addr, in_delay, instr_pc, in_delay ? (instr_pc - 4) : instr_pc);
         out_exception = true;
         break;
       }
       (void)memory_->read32(addr);
-      raise_exception(11, 0, in_delay, instr_pc);
+      raise_exception(11, 0, in_delay, instr_pc, in_delay ? (instr_pc - 4) : instr_pc);
       out_exception = true;
       break;
     }
     case 0x31: { // LWC1
       uint32_t addr = read_reg(rs) + imm_se;
       if (addr & 3) {
-        raise_exception(4, addr, in_delay, instr_pc);
+        raise_exception(4, addr, in_delay, instr_pc, in_delay ? (instr_pc - 4) : instr_pc);
         out_exception = true;
         break;
       }
       (void)memory_->read32(addr);
-      raise_exception(11, 0, in_delay, instr_pc);
+      raise_exception(11, 0, in_delay, instr_pc, in_delay ? (instr_pc - 4) : instr_pc);
       out_exception = true;
       break;
     }
     case 0x32: { // LWC2
       uint32_t addr = read_reg(rs) + imm_se;
       if (addr & 3) {
-        raise_exception(4, addr, in_delay, instr_pc);
+        raise_exception(4, addr, in_delay, instr_pc, in_delay ? (instr_pc - 4) : instr_pc);
         out_exception = true;
         break;
       }
@@ -745,43 +765,43 @@ uint32_t CpuCore::execute_instruction(uint32_t instr,
     case 0x33: { // LWC3
       uint32_t addr = read_reg(rs) + imm_se;
       if (addr & 3) {
-        raise_exception(4, addr, in_delay, instr_pc);
+        raise_exception(4, addr, in_delay, instr_pc, in_delay ? (instr_pc - 4) : instr_pc);
         out_exception = true;
         break;
       }
       (void)memory_->read32(addr);
-      raise_exception(11, 0, in_delay, instr_pc);
+      raise_exception(11, 0, in_delay, instr_pc, in_delay ? (instr_pc - 4) : instr_pc);
       out_exception = true;
       break;
     }
     case 0x38: { // SWC0
       uint32_t addr = read_reg(rs) + imm_se;
       if (addr & 3) {
-        raise_exception(5, addr, in_delay, instr_pc);
+        raise_exception(5, addr, in_delay, instr_pc, in_delay ? (instr_pc - 4) : instr_pc);
         out_exception = true;
         break;
       }
       (void)addr;
-      raise_exception(11, 0, in_delay, instr_pc);
+      raise_exception(11, 0, in_delay, instr_pc, in_delay ? (instr_pc - 4) : instr_pc);
       out_exception = true;
       break;
     }
     case 0x39: { // SWC1
       uint32_t addr = read_reg(rs) + imm_se;
       if (addr & 3) {
-        raise_exception(5, addr, in_delay, instr_pc);
+        raise_exception(5, addr, in_delay, instr_pc, in_delay ? (instr_pc - 4) : instr_pc);
         out_exception = true;
         break;
       }
       (void)addr;
-      raise_exception(11, 0, in_delay, instr_pc);
+      raise_exception(11, 0, in_delay, instr_pc, in_delay ? (instr_pc - 4) : instr_pc);
       out_exception = true;
       break;
     }
     case 0x3A: { // SWC2
       uint32_t addr = read_reg(rs) + imm_se;
       if (addr & 3) {
-        raise_exception(5, addr, in_delay, instr_pc);
+        raise_exception(5, addr, in_delay, instr_pc, in_delay ? (instr_pc - 4) : instr_pc);
         out_exception = true;
         break;
       }
@@ -791,17 +811,17 @@ uint32_t CpuCore::execute_instruction(uint32_t instr,
     case 0x3B: { // SWC3
       uint32_t addr = read_reg(rs) + imm_se;
       if (addr & 3) {
-        raise_exception(5, addr, in_delay, instr_pc);
+        raise_exception(5, addr, in_delay, instr_pc, in_delay ? (instr_pc - 4) : instr_pc);
         out_exception = true;
         break;
       }
       (void)addr;
-      raise_exception(11, 0, in_delay, instr_pc);
+      raise_exception(11, 0, in_delay, instr_pc, in_delay ? (instr_pc - 4) : instr_pc);
       out_exception = true;
       break;
     }
     default:
-      raise_exception(10, 0, in_delay, instr_pc);
+      raise_exception(10, 0, in_delay, instr_pc, in_delay ? (instr_pc - 4) : instr_pc);
       out_exception = true;
       break;
   }

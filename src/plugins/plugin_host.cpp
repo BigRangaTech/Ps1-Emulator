@@ -1,5 +1,7 @@
 #include "plugins/plugin_host.h"
 
+#include <sys/wait.h>
+
 #include <sstream>
 
 namespace ps1emu {
@@ -86,6 +88,23 @@ bool PluginHost::recv_frame(PluginType type, uint16_t &out_type, std::vector<uin
     return false;
   }
   return it->second.channel.recv_frame(out_type, out_payload);
+}
+
+void PluginHost::shutdown_all() {
+  std::vector<int> pids;
+  pids.reserve(plugins_.size());
+  for (const auto &entry : plugins_) {
+    if (entry.second.pid > 0) {
+      pids.push_back(entry.second.pid);
+    }
+  }
+
+  plugins_.clear();
+
+  for (int pid : pids) {
+    int status = 0;
+    waitpid(pid, &status, 0);
+  }
 }
 
 } // namespace ps1emu

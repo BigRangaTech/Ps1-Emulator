@@ -78,6 +78,16 @@ static size_t gp0_packet_length(const std::vector<uint32_t> &words, size_t index
     return words_count;
   }
 
+  if (cmd >= 0x80 && cmd <= 0x9F) { // copy rectangle / move image / etc.
+    return 4;
+  }
+  if (cmd >= 0xA0 && cmd <= 0xBF) { // image load/store
+    return 3;
+  }
+  if (cmd >= 0xC0 && cmd <= 0xDF) { // image store
+    return 3;
+  }
+
   return 1;
 }
 

@@ -188,6 +188,19 @@ ps1emu/fast:
 .PHONY : ps1emu/fast
 
 #=============================================================================
+# Target rules for targets named ps1emu_tests
+
+# Build rule for target.
+ps1emu_tests: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 ps1emu_tests
+.PHONY : ps1emu_tests
+
+# fast build rule for target.
+ps1emu_tests/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/ps1emu_tests.dir/build.make CMakeFiles/ps1emu_tests.dir/build
+.PHONY : ps1emu_tests/fast
+
+#=============================================================================
 # Target rules for targets named ps1emu_gpu_stub
 
 # Build rule for target.
@@ -817,6 +830,30 @@ src/ui/text_ui.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/ps1emu_ui.dir/build.make CMakeFiles/ps1emu_ui.dir/src/ui/text_ui.cpp.s
 .PHONY : src/ui/text_ui.cpp.s
 
+tests/emulator_tests.o: tests/emulator_tests.cpp.o
+.PHONY : tests/emulator_tests.o
+
+# target to build an object file
+tests/emulator_tests.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/ps1emu_tests.dir/build.make CMakeFiles/ps1emu_tests.dir/tests/emulator_tests.cpp.o
+.PHONY : tests/emulator_tests.cpp.o
+
+tests/emulator_tests.i: tests/emulator_tests.cpp.i
+.PHONY : tests/emulator_tests.i
+
+# target to preprocess a source file
+tests/emulator_tests.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/ps1emu_tests.dir/build.make CMakeFiles/ps1emu_tests.dir/tests/emulator_tests.cpp.i
+.PHONY : tests/emulator_tests.cpp.i
+
+tests/emulator_tests.s: tests/emulator_tests.cpp.s
+.PHONY : tests/emulator_tests.s
+
+# target to generate assembly for a file
+tests/emulator_tests.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/ps1emu_tests.dir/build.make CMakeFiles/ps1emu_tests.dir/tests/emulator_tests.cpp.s
+.PHONY : tests/emulator_tests.cpp.s
+
 # Help Target
 help:
 	@echo "The following are some of the valid targets for this Makefile:"
@@ -836,6 +873,7 @@ help:
 	@echo "... ps1emu_gui"
 	@echo "... ps1emu_input_stub"
 	@echo "... ps1emu_spu_stub"
+	@echo "... ps1emu_tests"
 	@echo "... ps1emu_ui"
 	@echo "... plugins/cdrom_stub/main.o"
 	@echo "... plugins/cdrom_stub/main.i"
@@ -906,6 +944,9 @@ help:
 	@echo "... src/ui/text_ui.o"
 	@echo "... src/ui/text_ui.i"
 	@echo "... src/ui/text_ui.s"
+	@echo "... tests/emulator_tests.o"
+	@echo "... tests/emulator_tests.i"
+	@echo "... tests/emulator_tests.s"
 .PHONY : help
 
 

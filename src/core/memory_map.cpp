@@ -24,6 +24,20 @@ bool MemoryMap::irq_pending() const {
   return mmio_->irq_pending();
 }
 
+uint16_t MemoryMap::irq_stat() const {
+  if (!mmio_) {
+    return 0;
+  }
+  return mmio_->irq_stat();
+}
+
+uint16_t MemoryMap::irq_mask() const {
+  if (!mmio_) {
+    return 0;
+  }
+  return mmio_->irq_mask();
+}
+
 uint32_t MemoryMap::mask_address(uint32_t addr) const {
   return addr & 0x1FFFFFFF;
 }

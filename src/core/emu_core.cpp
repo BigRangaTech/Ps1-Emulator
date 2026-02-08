@@ -165,7 +165,7 @@ void EmulatorCore::dump_dynarec_profile() const {
 }
 
 void EmulatorCore::shutdown() {
-  // TODO: send shutdown messages and wait for plugin exit.
+  plugin_host_.shutdown_all();
 }
 
 const Config &EmulatorCore::config() const {

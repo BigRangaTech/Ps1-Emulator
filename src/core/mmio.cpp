@@ -24,7 +24,21 @@ void MmioBus::reset() {
   std::memset(timer_irq_enable_, 0, sizeof(timer_irq_enable_));
   std::memset(timer_irq_repeat_, 0, sizeof(timer_irq_repeat_));
   std::memset(timer_irq_on_overflow_, 0, sizeof(timer_irq_on_overflow_));
+  std::memset(timer_irq_on_target_, 0, sizeof(timer_irq_on_target_));
   dma_active_channel_ = 0xFFFFFFFFu;
+}
+
+static uint32_t recompute_dma_master(uint32_t dicr) {
+  bool master = (dicr & (1u << 23)) != 0;
+  uint32_t enables = (dicr >> 16) & 0x7F;
+  uint32_t flags = (dicr >> 24) & 0x7F;
+  bool irq = master && ((enables & flags) != 0);
+  if (irq) {
+    dicr |= (1u << 31);
+  } else {
+    dicr &= ~(1u << 31);
+  }
+  return dicr;
 }
 
 uint32_t MmioBus::offset(uint32_t addr) const {
@@ -158,10 +172,11 @@ void MmioBus::write16(uint32_t addr, uint16_t value) {
         timer_irq_enable_[timer] = (value & (1u << 4)) != 0;
         timer_irq_repeat_[timer] = (value & (1u << 5)) != 0;
         timer_irq_on_overflow_[timer] = (value & (1u << 6)) != 0;
+        timer_irq_on_target_[timer] = (value & (1u << 7)) != 0;
         if (value & (1u << 3)) {
           timer_count_[timer] = 0;
         }
-        if (value & (1u << 7)) {
+        if (value & (1u << 8)) {
           irq_stat_ &= static_cast<uint16_t>(~(1u << (4 + timer)));
         }
       } else if (reg == 0x8) {
@@ -214,7 +229,10 @@ void MmioBus::write32(uint32_t addr, uint32_t value) {
   } else if (addr == 0x1F8010F0) {
     dma_dpcr_ = value;
   } else if (addr == 0x1F8010F4) {
-    dma_dicr_ = value;
+    uint32_t clear = (value >> 24) & 0x7F;
+    dma_dicr_ &= ~(clear << 24);
+    dma_dicr_ = (dma_dicr_ & 0xFF000000u) | (value & 0x00FFFFFFu);
+    dma_dicr_ = recompute_dma_master(dma_dicr_);
   }
 
   if (addr >= 0x1F801100 && addr < 0x1F801130) {
@@ -252,6 +270,14 @@ bool MmioBus::irq_pending() const {
   return (irq_stat_ & irq_mask_) != 0;
 }
 
+uint16_t MmioBus::irq_stat() const {
+  return irq_stat_;
+}
+
+uint16_t MmioBus::irq_mask() const {
+  return irq_mask_;
+}
+
 void MmioBus::tick(uint32_t cycles) {
   for (int i = 0; i < 3; ++i) {
     uint32_t before = timer_count_[i];
@@ -263,7 +289,7 @@ void MmioBus::tick(uint32_t cycles) {
     timer_count_[i] = static_cast<uint16_t>(after);
     uint16_t target = timer_target_[i];
     if (target != 0 && before < target && after >= target) {
-      if (timer_irq_enable_[i]) {
+      if (timer_irq_enable_[i] && timer_irq_on_target_[i]) {
         irq_stat_ |= static_cast<uint16_t>(1u << (4 + i));
       }
       if (mode & (1u << 3)) { // reset on target
@@ -288,7 +314,13 @@ uint32_t MmioBus::consume_dma_channel() {
   uint32_t channel = dma_active_channel_;
   dma_active_channel_ = 0xFFFFFFFFu;
   if (channel < 7) {
-    irq_stat_ |= (1u << 3); // DMA IRQ
+    bool master = (dma_dicr_ & (1u << 23)) != 0;
+    bool enable = (dma_dicr_ & (1u << (16 + channel))) != 0;
+    if (master && enable) {
+      dma_dicr_ |= (1u << (24 + channel));
+      dma_dicr_ = recompute_dma_master(dma_dicr_);
+      irq_stat_ |= (1u << 3); // DMA IRQ
+    }
     dma_chcr_[channel] &= ~(1u << 24);
     return channel;
   }

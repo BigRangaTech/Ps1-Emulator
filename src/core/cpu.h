@@ -50,7 +50,7 @@ private:
   uint32_t read_reg(uint32_t index) const;
   void write_reg(uint32_t index, uint32_t value);
   void set_branch_target(uint32_t target);
-  void raise_exception(uint32_t excode, uint32_t badaddr, bool in_delay, uint32_t instr_pc);
+  void raise_exception(uint32_t excode, uint32_t badaddr, bool in_delay, uint32_t instr_pc, uint32_t epc_pc);
   bool check_interrupts();
 
   MemoryMap *memory_ = nullptr;
@@ -60,6 +60,9 @@ private:
   DynarecCache dynarec_cache_;
   std::unique_ptr<DynarecBackend> dynarec_backend_;
   PendingLoad load_delay_;
+  bool load_delay_shadow_valid_ = false;
+  uint32_t load_delay_shadow_reg_ = 0;
+  uint32_t load_delay_shadow_value_ = 0;
   bool branch_pending_ = false;
 };
 

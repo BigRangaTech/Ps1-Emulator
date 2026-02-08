@@ -25,6 +25,7 @@ public:
   bool bios_is_hle() const;
 
 private:
+  friend struct EmulatorCoreTestAccess;
   void flush_gpu_commands();
   void process_dma();
 

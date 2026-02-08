@@ -18,6 +18,8 @@ public:
   void load_bios(const BiosImage &bios);
   void attach_mmio(MmioBus &mmio);
   bool irq_pending() const;
+  uint16_t irq_stat() const;
+  uint16_t irq_mask() const;
 
   uint8_t read8(uint32_t addr) const;
   uint16_t read16(uint32_t addr) const;

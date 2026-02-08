@@ -65,6 +65,7 @@ CMAKE_BINARY_DIR = /home/jessie/Documents/Ps1-Emulator/build
 # The main recursive "all" target.
 all: CMakeFiles/ps1emu_core.dir/all
 all: CMakeFiles/ps1emu.dir/all
+all: CMakeFiles/ps1emu_tests.dir/all
 all: CMakeFiles/ps1emu_gpu_stub.dir/all
 all: CMakeFiles/ps1emu_spu_stub.dir/all
 all: CMakeFiles/ps1emu_input_stub.dir/all
@@ -76,6 +77,7 @@ all: CMakeFiles/ps1emu_gui.dir/all
 # The main recursive "codegen" target.
 codegen: CMakeFiles/ps1emu_core.dir/codegen
 codegen: CMakeFiles/ps1emu.dir/codegen
+codegen: CMakeFiles/ps1emu_tests.dir/codegen
 codegen: CMakeFiles/ps1emu_gpu_stub.dir/codegen
 codegen: CMakeFiles/ps1emu_spu_stub.dir/codegen
 codegen: CMakeFiles/ps1emu_input_stub.dir/codegen
@@ -91,6 +93,7 @@ preinstall:
 # The main recursive "clean" target.
 clean: CMakeFiles/ps1emu_core.dir/clean
 clean: CMakeFiles/ps1emu.dir/clean
+clean: CMakeFiles/ps1emu_tests.dir/clean
 clean: CMakeFiles/ps1emu_gpu_stub.dir/clean
 clean: CMakeFiles/ps1emu_spu_stub.dir/clean
 clean: CMakeFiles/ps1emu_input_stub.dir/clean
@@ -162,6 +165,38 @@ CMakeFiles/ps1emu.dir/codegen:
 CMakeFiles/ps1emu.dir/clean:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/ps1emu.dir/build.make CMakeFiles/ps1emu.dir/clean
 .PHONY : CMakeFiles/ps1emu.dir/clean
+
+#=============================================================================
+# Target rules for target CMakeFiles/ps1emu_tests.dir
+
+# All Build rule for target.
+CMakeFiles/ps1emu_tests.dir/all: CMakeFiles/ps1emu_core.dir/all
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/ps1emu_tests.dir/build.make CMakeFiles/ps1emu_tests.dir/depend
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/ps1emu_tests.dir/build.make CMakeFiles/ps1emu_tests.dir/build
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/home/jessie/Documents/Ps1-Emulator/build/CMakeFiles --progress-num=29,30 "Built target ps1emu_tests"
+.PHONY : CMakeFiles/ps1emu_tests.dir/all
+
+# Build rule for subdir invocation for target.
+CMakeFiles/ps1emu_tests.dir/rule: cmake_check_build_system
+	$(CMAKE_COMMAND) -E cmake_progress_start /home/jessie/Documents/Ps1-Emulator/build/CMakeFiles 17
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 CMakeFiles/ps1emu_tests.dir/all
+	$(CMAKE_COMMAND) -E cmake_progress_start /home/jessie/Documents/Ps1-Emulator/build/CMakeFiles 0
+.PHONY : CMakeFiles/ps1emu_tests.dir/rule
+
+# Convenience name for target.
+ps1emu_tests: CMakeFiles/ps1emu_tests.dir/rule
+.PHONY : ps1emu_tests
+
+# codegen rule for target.
+CMakeFiles/ps1emu_tests.dir/codegen:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/ps1emu_tests.dir/build.make CMakeFiles/ps1emu_tests.dir/codegen
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/home/jessie/Documents/Ps1-Emulator/build/CMakeFiles --progress-num=29,30 "Finished codegen for target ps1emu_tests"
+.PHONY : CMakeFiles/ps1emu_tests.dir/codegen
+
+# clean rule for target.
+CMakeFiles/ps1emu_tests.dir/clean:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/ps1emu_tests.dir/build.make CMakeFiles/ps1emu_tests.dir/clean
+.PHONY : CMakeFiles/ps1emu_tests.dir/clean
 
 #=============================================================================
 # Target rules for target CMakeFiles/ps1emu_gpu_stub.dir
@@ -298,7 +333,7 @@ CMakeFiles/ps1emu_cdrom_stub.dir/clean:
 CMakeFiles/ps1emu_ui.dir/all: CMakeFiles/ps1emu_core.dir/all
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/ps1emu_ui.dir/build.make CMakeFiles/ps1emu_ui.dir/depend
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/ps1emu_ui.dir/build.make CMakeFiles/ps1emu_ui.dir/build
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/home/jessie/Documents/Ps1-Emulator/build/CMakeFiles --progress-num=29,30,31 "Built target ps1emu_ui"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/home/jessie/Documents/Ps1-Emulator/build/CMakeFiles --progress-num=31,32,33 "Built target ps1emu_ui"
 .PHONY : CMakeFiles/ps1emu_ui.dir/all
 
 # Build rule for subdir invocation for target.
@@ -315,7 +350,7 @@ ps1emu_ui: CMakeFiles/ps1emu_ui.dir/rule
 # codegen rule for target.
 CMakeFiles/ps1emu_ui.dir/codegen:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/ps1emu_ui.dir/build.make CMakeFiles/ps1emu_ui.dir/codegen
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/home/jessie/Documents/Ps1-Emulator/build/CMakeFiles --progress-num=29,30,31 "Finished codegen for target ps1emu_ui"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/home/jessie/Documents/Ps1-Emulator/build/CMakeFiles --progress-num=31,32,33 "Finished codegen for target ps1emu_ui"
 .PHONY : CMakeFiles/ps1emu_ui.dir/codegen
 
 # clean rule for target.
