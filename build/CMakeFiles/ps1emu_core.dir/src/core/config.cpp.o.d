@@ -174,4 +174,8 @@ CMakeFiles/ps1emu_core.dir/src/core/config.cpp.o: \
  /usr/include/x86_64-linux-gnu/c++/15/bits/basic_file.h \
  /usr/include/x86_64-linux-gnu/c++/15/bits/c++io.h \
  /usr/include/c++/15/bits/fstream.tcc /usr/include/c++/15/sstream \
- /usr/include/c++/15/bits/sstream.tcc
+ /usr/include/c++/15/bits/sstream.tcc /usr/include/c++/15/vector \
+ /usr/include/c++/15/bits/stl_uninitialized.h \
+ /usr/include/c++/15/bits/stl_vector.h \
+ /usr/include/c++/15/bits/stl_bvector.h \
+ /usr/include/c++/15/bits/vector.tcc

@@ -28,6 +28,10 @@ CpuState &CpuCore::state() {
   return state_;
 }
 
+std::vector<JitBlock> CpuCore::dynarec_blocks() const {
+  return dynarec_cache_.snapshot();
+}
+
 uint32_t CpuCore::step() {
   if (mode_ == Mode::Dynarec) {
     return step_dynarec();

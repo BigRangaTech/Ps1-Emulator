@@ -27,3 +27,7 @@ cmake --build build -j
 - The IPC protocol supports text control messages and a binary framed layer.
 - BIOS files are not included in the repo. If none is configured, a minimal HLE BIOS stub is used.
 - The GPU stub switches to framed mode and accepts a command buffer frame.
+- A simple text UI is available via `ps1emu_ui`.
+- An SDL2 GUI is available via `ps1emu_gui` when SDL2/SDL2_ttf are installed.
+- Flatpak manifest lives at `flatpak/org.ps1emu.PS1Emu.yml`.
+- Desktop entry: `assets/org.ps1emu.PS1Emu.desktop` (uses `ps1emu_gui_wrapper`).

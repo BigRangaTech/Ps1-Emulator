@@ -4,6 +4,7 @@
 #include <cctype>
 #include <fstream>
 #include <sstream>
+#include <vector>
 
 namespace ps1emu {
 
@@ -174,6 +175,50 @@ bool load_config_file(const std::string &path, Config &out, std::string &error) 
     }
 
     // Unknown keys are ignored to allow forward-compatible configs.
+  }
+
+  return true;
+}
+
+bool update_config_value(const std::string &path,
+                         const std::string &key,
+                         const std::string &value,
+                         std::string &error) {
+  std::ifstream file(path);
+  if (!file.is_open()) {
+    error = "Unable to open config file: " + path;
+    return false;
+  }
+
+  std::vector<std::string> lines;
+  std::string line;
+  bool updated = false;
+  while (std::getline(file, line)) {
+    std::string original = line;
+    if (!original.empty() && original.back() == '\r') {
+      original.pop_back();
+    }
+    std::string trimmed = trim(original);
+    if (!trimmed.empty() && trimmed[0] != '#') {
+      if (trimmed.rfind(key, 0) == 0 && trimmed.size() > key.size() && trimmed[key.size()] == '=') {
+        original = key + "=" + value;
+        updated = true;
+      }
+    }
+    lines.push_back(original);
+  }
+
+  if (!updated) {
+    lines.push_back(key + "=" + value);
+  }
+
+  std::ofstream out(path, std::ios::trunc);
+  if (!out.is_open()) {
+    error = "Unable to write config file: " + path;
+    return false;
+  }
+  for (const auto &out_line : lines) {
+    out << out_line << "\n";
   }
 
   return true;

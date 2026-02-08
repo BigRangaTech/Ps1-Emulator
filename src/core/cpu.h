@@ -24,6 +24,7 @@ public:
   void set_mode(Mode mode);
   Mode mode() const;
   CpuState &state();
+  std::vector<JitBlock> dynarec_blocks() const;
 
   uint32_t step();
 

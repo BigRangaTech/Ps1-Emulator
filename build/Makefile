@@ -85,6 +85,51 @@ rebuild_cache:
 rebuild_cache/fast: rebuild_cache
 .PHONY : rebuild_cache/fast
 
+# Special rule for the target list_install_components
+list_install_components:
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --cyan "Available install components are: \"Unspecified\""
+.PHONY : list_install_components
+
+# Special rule for the target list_install_components
+list_install_components/fast: list_install_components
+.PHONY : list_install_components/fast
+
+# Special rule for the target install
+install: preinstall
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --cyan "Install the project..."
+	/usr/bin/cmake -P cmake_install.cmake
+.PHONY : install
+
+# Special rule for the target install
+install/fast: preinstall/fast
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --cyan "Install the project..."
+	/usr/bin/cmake -P cmake_install.cmake
+.PHONY : install/fast
+
+# Special rule for the target install/local
+install/local: preinstall
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --cyan "Installing only the local directory..."
+	/usr/bin/cmake -DCMAKE_INSTALL_LOCAL_ONLY=1 -P cmake_install.cmake
+.PHONY : install/local
+
+# Special rule for the target install/local
+install/local/fast: preinstall/fast
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --cyan "Installing only the local directory..."
+	/usr/bin/cmake -DCMAKE_INSTALL_LOCAL_ONLY=1 -P cmake_install.cmake
+.PHONY : install/local/fast
+
+# Special rule for the target install/strip
+install/strip: preinstall
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --cyan "Installing the project stripped..."
+	/usr/bin/cmake -DCMAKE_INSTALL_DO_STRIP=1 -P cmake_install.cmake
+.PHONY : install/strip
+
+# Special rule for the target install/strip
+install/strip/fast: preinstall/fast
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --cyan "Installing the project stripped..."
+	/usr/bin/cmake -DCMAKE_INSTALL_DO_STRIP=1 -P cmake_install.cmake
+.PHONY : install/strip/fast
+
 # The main all target
 all: cmake_check_build_system
 	$(CMAKE_COMMAND) -E cmake_progress_start /home/jessie/Documents/Ps1-Emulator/build/CMakeFiles /home/jessie/Documents/Ps1-Emulator/build//CMakeFiles/progress.marks
@@ -194,6 +239,32 @@ ps1emu_cdrom_stub/fast:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/ps1emu_cdrom_stub.dir/build.make CMakeFiles/ps1emu_cdrom_stub.dir/build
 .PHONY : ps1emu_cdrom_stub/fast
 
+#=============================================================================
+# Target rules for targets named ps1emu_ui
+
+# Build rule for target.
+ps1emu_ui: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 ps1emu_ui
+.PHONY : ps1emu_ui
+
+# fast build rule for target.
+ps1emu_ui/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/ps1emu_ui.dir/build.make CMakeFiles/ps1emu_ui.dir/build
+.PHONY : ps1emu_ui/fast
+
+#=============================================================================
+# Target rules for targets named ps1emu_gui
+
+# Build rule for target.
+ps1emu_gui: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 ps1emu_gui
+.PHONY : ps1emu_gui
+
+# fast build rule for target.
+ps1emu_gui/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/ps1emu_gui.dir/build.make CMakeFiles/ps1emu_gui.dir/build
+.PHONY : ps1emu_gui/fast
+
 plugins/cdrom_stub/main.o: plugins/cdrom_stub/main.cpp.o
 .PHONY : plugins/cdrom_stub/main.o
 
@@ -290,6 +361,30 @@ plugins/spu_stub/main.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/ps1emu_spu_stub.dir/build.make CMakeFiles/ps1emu_spu_stub.dir/plugins/spu_stub/main.cpp.s
 .PHONY : plugins/spu_stub/main.cpp.s
 
+src/core/app_paths.o: src/core/app_paths.cpp.o
+.PHONY : src/core/app_paths.o
+
+# target to build an object file
+src/core/app_paths.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/ps1emu_core.dir/build.make CMakeFiles/ps1emu_core.dir/src/core/app_paths.cpp.o
+.PHONY : src/core/app_paths.cpp.o
+
+src/core/app_paths.i: src/core/app_paths.cpp.i
+.PHONY : src/core/app_paths.i
+
+# target to preprocess a source file
+src/core/app_paths.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/ps1emu_core.dir/build.make CMakeFiles/ps1emu_core.dir/src/core/app_paths.cpp.i
+.PHONY : src/core/app_paths.cpp.i
+
+src/core/app_paths.s: src/core/app_paths.cpp.s
+.PHONY : src/core/app_paths.s
+
+# target to generate assembly for a file
+src/core/app_paths.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/ps1emu_core.dir/build.make CMakeFiles/ps1emu_core.dir/src/core/app_paths.cpp.s
+.PHONY : src/core/app_paths.cpp.s
+
 src/core/bios.o: src/core/bios.cpp.o
 .PHONY : src/core/bios.o
 
@@ -337,6 +432,30 @@ src/core/config.s: src/core/config.cpp.s
 src/core/config.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/ps1emu_core.dir/build.make CMakeFiles/ps1emu_core.dir/src/core/config.cpp.s
 .PHONY : src/core/config.cpp.s
+
+src/core/config_paths.o: src/core/config_paths.cpp.o
+.PHONY : src/core/config_paths.o
+
+# target to build an object file
+src/core/config_paths.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/ps1emu_core.dir/build.make CMakeFiles/ps1emu_core.dir/src/core/config_paths.cpp.o
+.PHONY : src/core/config_paths.cpp.o
+
+src/core/config_paths.i: src/core/config_paths.cpp.i
+.PHONY : src/core/config_paths.i
+
+# target to preprocess a source file
+src/core/config_paths.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/ps1emu_core.dir/build.make CMakeFiles/ps1emu_core.dir/src/core/config_paths.cpp.i
+.PHONY : src/core/config_paths.cpp.i
+
+src/core/config_paths.s: src/core/config_paths.cpp.s
+.PHONY : src/core/config_paths.s
+
+# target to generate assembly for a file
+src/core/config_paths.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/ps1emu_core.dir/build.make CMakeFiles/ps1emu_core.dir/src/core/config_paths.cpp.s
+.PHONY : src/core/config_paths.cpp.s
 
 src/core/cpu.o: src/core/cpu.cpp.o
 .PHONY : src/core/cpu.o
@@ -409,6 +528,30 @@ src/core/emu_core.s: src/core/emu_core.cpp.s
 src/core/emu_core.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/ps1emu_core.dir/build.make CMakeFiles/ps1emu_core.dir/src/core/emu_core.cpp.s
 .PHONY : src/core/emu_core.cpp.s
+
+src/core/gpu_commands.o: src/core/gpu_commands.cpp.o
+.PHONY : src/core/gpu_commands.o
+
+# target to build an object file
+src/core/gpu_commands.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/ps1emu_core.dir/build.make CMakeFiles/ps1emu_core.dir/src/core/gpu_commands.cpp.o
+.PHONY : src/core/gpu_commands.cpp.o
+
+src/core/gpu_commands.i: src/core/gpu_commands.cpp.i
+.PHONY : src/core/gpu_commands.i
+
+# target to preprocess a source file
+src/core/gpu_commands.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/ps1emu_core.dir/build.make CMakeFiles/ps1emu_core.dir/src/core/gpu_commands.cpp.i
+.PHONY : src/core/gpu_commands.cpp.i
+
+src/core/gpu_commands.s: src/core/gpu_commands.cpp.s
+.PHONY : src/core/gpu_commands.s
+
+# target to generate assembly for a file
+src/core/gpu_commands.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/ps1emu_core.dir/build.make CMakeFiles/ps1emu_core.dir/src/core/gpu_commands.cpp.s
+.PHONY : src/core/gpu_commands.cpp.s
 
 src/core/memory_map.o: src/core/memory_map.cpp.o
 .PHONY : src/core/memory_map.o
@@ -530,6 +673,102 @@ src/plugins/plugin_host.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/ps1emu_core.dir/build.make CMakeFiles/ps1emu_core.dir/src/plugins/plugin_host.cpp.s
 .PHONY : src/plugins/plugin_host.cpp.s
 
+src/ui/gui_app.o: src/ui/gui_app.cpp.o
+.PHONY : src/ui/gui_app.o
+
+# target to build an object file
+src/ui/gui_app.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/ps1emu_gui.dir/build.make CMakeFiles/ps1emu_gui.dir/src/ui/gui_app.cpp.o
+.PHONY : src/ui/gui_app.cpp.o
+
+src/ui/gui_app.i: src/ui/gui_app.cpp.i
+.PHONY : src/ui/gui_app.i
+
+# target to preprocess a source file
+src/ui/gui_app.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/ps1emu_gui.dir/build.make CMakeFiles/ps1emu_gui.dir/src/ui/gui_app.cpp.i
+.PHONY : src/ui/gui_app.cpp.i
+
+src/ui/gui_app.s: src/ui/gui_app.cpp.s
+.PHONY : src/ui/gui_app.s
+
+# target to generate assembly for a file
+src/ui/gui_app.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/ps1emu_gui.dir/build.make CMakeFiles/ps1emu_gui.dir/src/ui/gui_app.cpp.s
+.PHONY : src/ui/gui_app.cpp.s
+
+src/ui/gui_main.o: src/ui/gui_main.cpp.o
+.PHONY : src/ui/gui_main.o
+
+# target to build an object file
+src/ui/gui_main.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/ps1emu_gui.dir/build.make CMakeFiles/ps1emu_gui.dir/src/ui/gui_main.cpp.o
+.PHONY : src/ui/gui_main.cpp.o
+
+src/ui/gui_main.i: src/ui/gui_main.cpp.i
+.PHONY : src/ui/gui_main.i
+
+# target to preprocess a source file
+src/ui/gui_main.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/ps1emu_gui.dir/build.make CMakeFiles/ps1emu_gui.dir/src/ui/gui_main.cpp.i
+.PHONY : src/ui/gui_main.cpp.i
+
+src/ui/gui_main.s: src/ui/gui_main.cpp.s
+.PHONY : src/ui/gui_main.s
+
+# target to generate assembly for a file
+src/ui/gui_main.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/ps1emu_gui.dir/build.make CMakeFiles/ps1emu_gui.dir/src/ui/gui_main.cpp.s
+.PHONY : src/ui/gui_main.cpp.s
+
+src/ui/main.o: src/ui/main.cpp.o
+.PHONY : src/ui/main.o
+
+# target to build an object file
+src/ui/main.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/ps1emu_ui.dir/build.make CMakeFiles/ps1emu_ui.dir/src/ui/main.cpp.o
+.PHONY : src/ui/main.cpp.o
+
+src/ui/main.i: src/ui/main.cpp.i
+.PHONY : src/ui/main.i
+
+# target to preprocess a source file
+src/ui/main.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/ps1emu_ui.dir/build.make CMakeFiles/ps1emu_ui.dir/src/ui/main.cpp.i
+.PHONY : src/ui/main.cpp.i
+
+src/ui/main.s: src/ui/main.cpp.s
+.PHONY : src/ui/main.s
+
+# target to generate assembly for a file
+src/ui/main.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/ps1emu_ui.dir/build.make CMakeFiles/ps1emu_ui.dir/src/ui/main.cpp.s
+.PHONY : src/ui/main.cpp.s
+
+src/ui/text_ui.o: src/ui/text_ui.cpp.o
+.PHONY : src/ui/text_ui.o
+
+# target to build an object file
+src/ui/text_ui.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/ps1emu_ui.dir/build.make CMakeFiles/ps1emu_ui.dir/src/ui/text_ui.cpp.o
+.PHONY : src/ui/text_ui.cpp.o
+
+src/ui/text_ui.i: src/ui/text_ui.cpp.i
+.PHONY : src/ui/text_ui.i
+
+# target to preprocess a source file
+src/ui/text_ui.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/ps1emu_ui.dir/build.make CMakeFiles/ps1emu_ui.dir/src/ui/text_ui.cpp.i
+.PHONY : src/ui/text_ui.cpp.i
+
+src/ui/text_ui.s: src/ui/text_ui.cpp.s
+.PHONY : src/ui/text_ui.s
+
+# target to generate assembly for a file
+src/ui/text_ui.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/ps1emu_ui.dir/build.make CMakeFiles/ps1emu_ui.dir/src/ui/text_ui.cpp.s
+.PHONY : src/ui/text_ui.cpp.s
+
 # Help Target
 help:
 	@echo "The following are some of the valid targets for this Makefile:"
@@ -537,13 +776,19 @@ help:
 	@echo "... clean"
 	@echo "... depend"
 	@echo "... edit_cache"
+	@echo "... install"
+	@echo "... install/local"
+	@echo "... install/strip"
+	@echo "... list_install_components"
 	@echo "... rebuild_cache"
 	@echo "... ps1emu"
 	@echo "... ps1emu_cdrom_stub"
 	@echo "... ps1emu_core"
 	@echo "... ps1emu_gpu_stub"
+	@echo "... ps1emu_gui"
 	@echo "... ps1emu_input_stub"
 	@echo "... ps1emu_spu_stub"
+	@echo "... ps1emu_ui"
 	@echo "... plugins/cdrom_stub/main.o"
 	@echo "... plugins/cdrom_stub/main.i"
 	@echo "... plugins/cdrom_stub/main.s"
@@ -556,12 +801,18 @@ help:
 	@echo "... plugins/spu_stub/main.o"
 	@echo "... plugins/spu_stub/main.i"
 	@echo "... plugins/spu_stub/main.s"
+	@echo "... src/core/app_paths.o"
+	@echo "... src/core/app_paths.i"
+	@echo "... src/core/app_paths.s"
 	@echo "... src/core/bios.o"
 	@echo "... src/core/bios.i"
 	@echo "... src/core/bios.s"
 	@echo "... src/core/config.o"
 	@echo "... src/core/config.i"
 	@echo "... src/core/config.s"
+	@echo "... src/core/config_paths.o"
+	@echo "... src/core/config_paths.i"
+	@echo "... src/core/config_paths.s"
 	@echo "... src/core/cpu.o"
 	@echo "... src/core/cpu.i"
 	@echo "... src/core/cpu.s"
@@ -571,6 +822,9 @@ help:
 	@echo "... src/core/emu_core.o"
 	@echo "... src/core/emu_core.i"
 	@echo "... src/core/emu_core.s"
+	@echo "... src/core/gpu_commands.o"
+	@echo "... src/core/gpu_commands.i"
+	@echo "... src/core/gpu_commands.s"
 	@echo "... src/core/memory_map.o"
 	@echo "... src/core/memory_map.i"
 	@echo "... src/core/memory_map.s"
@@ -586,6 +840,18 @@ help:
 	@echo "... src/plugins/plugin_host.o"
 	@echo "... src/plugins/plugin_host.i"
 	@echo "... src/plugins/plugin_host.s"
+	@echo "... src/ui/gui_app.o"
+	@echo "... src/ui/gui_app.i"
+	@echo "... src/ui/gui_app.s"
+	@echo "... src/ui/gui_main.o"
+	@echo "... src/ui/gui_main.i"
+	@echo "... src/ui/gui_main.s"
+	@echo "... src/ui/main.o"
+	@echo "... src/ui/main.i"
+	@echo "... src/ui/main.s"
+	@echo "... src/ui/text_ui.o"
+	@echo "... src/ui/text_ui.i"
+	@echo "... src/ui/text_ui.s"
 .PHONY : help
 
 

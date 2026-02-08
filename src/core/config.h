@@ -24,6 +24,10 @@ struct Config {
 };
 
 bool load_config_file(const std::string &path, Config &out, std::string &error);
+bool update_config_value(const std::string &path,
+                         const std::string &key,
+                         const std::string &value,
+                         std::string &error);
 
 } // namespace ps1emu
 

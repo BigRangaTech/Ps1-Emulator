@@ -104,6 +104,15 @@ void DynarecCache::invalidate_all() {
   blocks_.clear();
 }
 
+std::vector<JitBlock> DynarecCache::snapshot() const {
+  std::vector<JitBlock> result;
+  result.reserve(blocks_.size());
+  for (const auto &pair : blocks_) {
+    result.push_back(pair.second);
+  }
+  return result;
+}
+
 void DynarecCache::evict_if_needed() {
   if (blocks_.size() <= max_blocks_) {
     return;

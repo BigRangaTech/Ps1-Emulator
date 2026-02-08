@@ -185,6 +185,7 @@ CMakeFiles/ps1emu_core.dir/src/core/emu_core.cpp.o: \
  /home/jessie/Documents/Ps1-Emulator/src/core/scheduler.h \
  /home/jessie/Documents/Ps1-Emulator/src/plugins/plugin_host.h \
  /home/jessie/Documents/Ps1-Emulator/src/plugins/ipc.h \
+ /home/jessie/Documents/Ps1-Emulator/src/core/gpu_commands.h \
  /usr/include/c++/15/iostream /usr/include/c++/15/ostream \
  /usr/include/c++/15/bits/ostream.h /usr/include/c++/15/ios \
  /usr/include/c++/15/bits/ios_base.h \

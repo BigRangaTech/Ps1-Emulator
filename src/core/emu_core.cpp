@@ -1,5 +1,7 @@
 #include "core/emu_core.h"
 
+#include "core/gpu_commands.h"
+
 #include <iostream>
 
 namespace ps1emu {
@@ -42,16 +44,18 @@ bool EmulatorCore::initialize(const std::string &config_path) {
   }
 
   // Send a tiny dummy GPU command queue as a framed message.
+  std::vector<uint32_t> gpu_words = build_demo_gpu_commands();
   std::vector<uint8_t> gpu_cmds;
+  gpu_cmds.reserve(gpu_words.size() * sizeof(uint32_t));
   auto push_u32 = [&gpu_cmds](uint32_t value) {
     gpu_cmds.push_back(static_cast<uint8_t>(value & 0xFF));
     gpu_cmds.push_back(static_cast<uint8_t>((value >> 8) & 0xFF));
     gpu_cmds.push_back(static_cast<uint8_t>((value >> 16) & 0xFF));
     gpu_cmds.push_back(static_cast<uint8_t>((value >> 24) & 0xFF));
   };
-  push_u32(0x01);
-  push_u32(0x02);
-  push_u32(0x03);
+  for (uint32_t word : gpu_words) {
+    push_u32(word);
+  }
 
   if (!plugin_host_.send_frame(PluginType::Gpu, 0x0001, gpu_cmds)) {
     std::cerr << "Failed to send GPU command frame\n";
@@ -74,8 +78,36 @@ void EmulatorCore::run_for_cycles(uint32_t cycles) {
   }
 }
 
+void EmulatorCore::dump_dynarec_profile() const {
+  auto blocks = cpu_.dynarec_blocks();
+  std::cout << "Dynarec blocks: " << blocks.size() << "\n";
+  for (const auto &block : blocks) {
+    std::cout << "PC=0x" << std::hex << block.pc << std::dec
+              << " size=" << block.size
+              << " opcodes=" << block.opcodes.size() << "\n";
+    size_t count = 0;
+    for (uint32_t op : block.opcodes) {
+      std::cout << "  0x" << std::hex << op << std::dec;
+      if (++count >= 8) {
+        break;
+      }
+    }
+    if (!block.opcodes.empty()) {
+      std::cout << "\n";
+    }
+  }
+}
+
 void EmulatorCore::shutdown() {
   // TODO: send shutdown messages and wait for plugin exit.
+}
+
+const Config &EmulatorCore::config() const {
+  return config_;
+}
+
+bool EmulatorCore::bios_is_hle() const {
+  return bios_.is_hle();
 }
 
 bool EmulatorCore::load_and_apply_config(const std::string &config_path) {

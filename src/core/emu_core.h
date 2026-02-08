@@ -18,7 +18,10 @@ public:
 
   bool initialize(const std::string &config_path);
   void run_for_cycles(uint32_t cycles);
+  void dump_dynarec_profile() const;
   void shutdown();
+  const Config &config() const;
+  bool bios_is_hle() const;
 
 private:
   bool load_and_apply_config(const std::string &config_path);

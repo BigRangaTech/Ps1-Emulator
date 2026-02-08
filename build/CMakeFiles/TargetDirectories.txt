@@ -4,5 +4,11 @@
 /home/jessie/Documents/Ps1-Emulator/build/CMakeFiles/ps1emu_spu_stub.dir
 /home/jessie/Documents/Ps1-Emulator/build/CMakeFiles/ps1emu_input_stub.dir
 /home/jessie/Documents/Ps1-Emulator/build/CMakeFiles/ps1emu_cdrom_stub.dir
+/home/jessie/Documents/Ps1-Emulator/build/CMakeFiles/ps1emu_ui.dir
+/home/jessie/Documents/Ps1-Emulator/build/CMakeFiles/ps1emu_gui.dir
 /home/jessie/Documents/Ps1-Emulator/build/CMakeFiles/edit_cache.dir
 /home/jessie/Documents/Ps1-Emulator/build/CMakeFiles/rebuild_cache.dir
+/home/jessie/Documents/Ps1-Emulator/build/CMakeFiles/list_install_components.dir
+/home/jessie/Documents/Ps1-Emulator/build/CMakeFiles/install.dir
+/home/jessie/Documents/Ps1-Emulator/build/CMakeFiles/install/local.dir
+/home/jessie/Documents/Ps1-Emulator/build/CMakeFiles/install/strip.dir

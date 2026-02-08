@@ -1,0 +1,1 @@
+/usr/bin/c++ -Wl,--dependency-file=CMakeFiles/ps1emu_ui.dir/link.d CMakeFiles/ps1emu_ui.dir/src/ui/text_ui.cpp.o CMakeFiles/ps1emu_ui.dir/src/ui/main.cpp.o -o ps1emu_ui  libps1emu_core.a

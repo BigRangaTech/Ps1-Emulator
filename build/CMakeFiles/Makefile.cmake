@@ -23,6 +23,9 @@ set(CMAKE_MAKEFILE_DEPENDS
   "/usr/share/cmake-3.31/Modules/Compiler/GNU-C.cmake"
   "/usr/share/cmake-3.31/Modules/Compiler/GNU-CXX.cmake"
   "/usr/share/cmake-3.31/Modules/Compiler/GNU.cmake"
+  "/usr/share/cmake-3.31/Modules/FindPackageHandleStandardArgs.cmake"
+  "/usr/share/cmake-3.31/Modules/FindPackageMessage.cmake"
+  "/usr/share/cmake-3.31/Modules/FindPkgConfig.cmake"
   "/usr/share/cmake-3.31/Modules/Internal/CMakeCLinkerInformation.cmake"
   "/usr/share/cmake-3.31/Modules/Internal/CMakeCXXLinkerInformation.cmake"
   "/usr/share/cmake-3.31/Modules/Internal/CMakeCommonLinkerInformation.cmake"
@@ -60,4 +63,6 @@ set(CMAKE_DEPEND_INFO_FILES
   "CMakeFiles/ps1emu_spu_stub.dir/DependInfo.cmake"
   "CMakeFiles/ps1emu_input_stub.dir/DependInfo.cmake"
   "CMakeFiles/ps1emu_cdrom_stub.dir/DependInfo.cmake"
+  "CMakeFiles/ps1emu_ui.dir/DependInfo.cmake"
+  "CMakeFiles/ps1emu_gui.dir/DependInfo.cmake"
   )

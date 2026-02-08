@@ -19,6 +19,24 @@ cmake --build build -j
 ./build/ps1emu --config ps1emu.conf
 ```
 
+## Text UI
+```bash
+./build/ps1emu_ui --config ps1emu.conf
+```
+
+## GUI (SDL2)
+The GUI builds when SDL2 and SDL2_ttf are available.
+```bash
+./build/ps1emu_gui --config ps1emu.conf
+```
+Use the Settings view to edit and save the BIOS path.
+Use **Browse BIOS** to open the built-in BIOS picker (scans `./Bios` and `./bios`).
+Use **Import BIOS** to copy a BIOS into the app data folder for Flatpak-safe access.
+
+## Flatpak
+Manifest: `flatpak/org.ps1emu.PS1Emu.yml`
+The manifest runs `ps1emu_gui_wrapper`, which creates a writable config under XDG config.
+
 ## Config
 `ps1emu.conf` controls plugin paths, BIOS path, CPU mode, and sandbox limits.
 If `bios.path` is empty, a minimal HLE BIOS stub is used.

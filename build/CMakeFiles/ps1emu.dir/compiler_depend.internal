@@ -6,6 +6,7 @@ CMakeFiles/ps1emu.dir/src/main.cpp.o
  /home/jessie/Documents/Ps1-Emulator/include/ps1emu/sandbox.h
  /home/jessie/Documents/Ps1-Emulator/src/core/bios.h
  /home/jessie/Documents/Ps1-Emulator/src/core/config.h
+ /home/jessie/Documents/Ps1-Emulator/src/core/config_paths.h
  /home/jessie/Documents/Ps1-Emulator/src/core/cpu.h
  /home/jessie/Documents/Ps1-Emulator/src/core/cpu_state.h
  /home/jessie/Documents/Ps1-Emulator/src/core/dynarec.h

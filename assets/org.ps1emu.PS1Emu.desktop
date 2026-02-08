@@ -1,0 +1,7 @@
+[Desktop Entry]
+Name=PS1 Emulator
+Exec=ps1emu_gui_wrapper
+Icon=org.ps1emu.PS1Emu
+Type=Application
+Categories=Game;Emulator;
+Terminal=false

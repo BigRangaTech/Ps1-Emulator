@@ -40,6 +40,7 @@ public:
   JitBlock *compile(uint32_t pc, DynarecBackend &backend, const MemoryMap &memory);
   void invalidate_range(uint32_t start, uint32_t size);
   void invalidate_all();
+  std::vector<JitBlock> snapshot() const;
 
 private:
   void touch(JitBlock &block);
