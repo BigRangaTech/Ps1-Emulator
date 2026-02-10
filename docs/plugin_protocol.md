@@ -50,6 +50,7 @@ Payload follows the header. Maximum payload size is 16 MiB.
   `u8 coding`, `u8 reserved`, `u16 data_len`, followed by XA audio bytes)
 - `0x0101` SPU PCM chunk (payload: `u32 lba`, `u16 sample_rate`, `u8 channels`, `u8 reserved`,
   `u32 sample_count`, followed by interleaved `s16le` PCM samples)
+- `0x0102` SPU master volume (payload: `s16le left`, `s16le right`)
 
 Notes:
 - GP1 display commands (start/range/mode) are forwarded via `0x0003`.

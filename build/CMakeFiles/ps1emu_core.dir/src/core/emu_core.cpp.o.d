@@ -217,4 +217,11 @@ CMakeFiles/ps1emu_core.dir/src/core/emu_core.cpp.o: \
  /usr/include/c++/15/bits/stl_heap.h \
  /usr/include/c++/15/bits/uniform_int_dist.h \
  /usr/include/c++/15/pstl/glue_algorithm_defs.h \
- /usr/include/c++/15/iostream
+ /usr/include/c++/15/iomanip /usr/include/c++/15/locale \
+ /usr/include/c++/15/bits/locale_facets_nonio.h /usr/include/c++/15/ctime \
+ /usr/include/x86_64-linux-gnu/c++/15/bits/time_members.h \
+ /usr/include/x86_64-linux-gnu/c++/15/bits/messages_members.h \
+ /usr/include/libintl.h /usr/include/c++/15/bits/locale_facets_nonio.tcc \
+ /usr/include/c++/15/bits/locale_conv.h \
+ /usr/include/c++/15/bits/quoted_string.h /usr/include/c++/15/sstream \
+ /usr/include/c++/15/bits/sstream.tcc /usr/include/c++/15/iostream

@@ -2,6 +2,11 @@
 
 #include <cstdint>
 
+namespace {
+constexpr uint32_t kCop0StatusBev = 1u << 22;
+constexpr uint32_t kCop0StatusIsc = 1u << 16;
+} // namespace
+
 namespace ps1emu {
 
 CpuCore::CpuCore(MemoryMap &memory, Scheduler &scheduler)
@@ -13,6 +18,7 @@ CpuCore::CpuCore(MemoryMap &memory, Scheduler &scheduler)
 void CpuCore::reset() {
   // TODO: reset registers and pipeline state.
   state_ = {};
+  state_.cop0.sr = kCop0StatusBev;
   state_.pc = 0xBFC00000;
   state_.next_pc = state_.pc + 4;
   gte_.reset();
@@ -23,6 +29,7 @@ void CpuCore::reset() {
   load_delay_shadow_value_ = 0;
   branch_pending_ = false;
   skip_next_ = false;
+  exception_pending_ = false;
   dynarec_cache_.invalidate_all();
 }
 
@@ -40,6 +47,15 @@ CpuState &CpuCore::state() {
 
 std::vector<JitBlock> CpuCore::dynarec_blocks() const {
   return dynarec_cache_.snapshot();
+}
+
+bool CpuCore::consume_exception(CpuExceptionInfo &out) {
+  if (!exception_pending_) {
+    return false;
+  }
+  out = last_exception_;
+  exception_pending_ = false;
+  return true;
 }
 
 uint32_t CpuCore::step() {
@@ -191,6 +207,12 @@ void CpuCore::raise_exception(uint32_t excode,
   } else {
     state_.cop0.cause &= ~(1u << 31);
   }
+  exception_pending_ = true;
+  last_exception_.code = excode;
+  last_exception_.pc = instr_pc;
+  last_exception_.badvaddr = badaddr;
+  last_exception_.in_delay = in_delay;
+  last_exception_.cause = state_.cop0.cause;
   uint32_t base = (state_.cop0.sr & (1u << 22)) ? 0xBFC00000 : state_.cop0.ebase;
   state_.pc = base + 0x80;
   state_.next_pc = state_.pc + 4;
@@ -233,6 +255,7 @@ uint32_t CpuCore::execute_instruction(uint32_t instr,
   uint32_t funct = instr & 0x3F;
   uint16_t imm = static_cast<uint16_t>(instr & 0xFFFF);
   uint32_t imm_se = sign_extend16(imm);
+  const bool cache_isolated = (state_.cop0.sr & kCop0StatusIsc) != 0;
 
   switch (op) {
     case 0x00: { // SPECIAL
@@ -749,6 +772,9 @@ uint32_t CpuCore::execute_instruction(uint32_t instr,
     }
     case 0x28: { // SB
       uint32_t addr = read_reg(rs) + imm_se;
+      if (cache_isolated) {
+        break;
+      }
       memory_->write8(addr, static_cast<uint8_t>(read_reg(rt) & 0xFF));
       break;
     }
@@ -759,11 +785,17 @@ uint32_t CpuCore::execute_instruction(uint32_t instr,
         out_exception = true;
         break;
       }
+      if (cache_isolated) {
+        break;
+      }
       memory_->write16(addr, static_cast<uint16_t>(read_reg(rt) & 0xFFFF));
       break;
     }
     case 0x2A: { // SWL
       uint32_t addr = read_reg(rs) + imm_se;
+      if (cache_isolated) {
+        break;
+      }
       uint32_t aligned = addr & ~3u;
       uint32_t word = memory_->read32(aligned);
       uint32_t reg = read_reg(rt);
@@ -791,11 +823,17 @@ uint32_t CpuCore::execute_instruction(uint32_t instr,
         out_exception = true;
         break;
       }
+      if (cache_isolated) {
+        break;
+      }
       memory_->write32(addr, read_reg(rt));
       break;
     }
     case 0x2E: { // SWR
       uint32_t addr = read_reg(rs) + imm_se;
+      if (cache_isolated) {
+        break;
+      }
       uint32_t aligned = addr & ~3u;
       uint32_t word = memory_->read32(aligned);
       uint32_t reg = read_reg(rt);
@@ -892,6 +930,9 @@ uint32_t CpuCore::execute_instruction(uint32_t instr,
       if (addr & 3) {
         raise_exception(5, addr, in_delay, instr_pc, in_delay ? (instr_pc - 4) : instr_pc);
         out_exception = true;
+        break;
+      }
+      if (cache_isolated) {
         break;
       }
       uint32_t value = gte_.read_data(rt);

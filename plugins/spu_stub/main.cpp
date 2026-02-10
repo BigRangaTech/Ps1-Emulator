@@ -136,6 +136,8 @@ int main() {
   };
 
   bool frame_mode = false;
+  int16_t master_vol_l = 0x3FFF;
+  int16_t master_vol_r = 0x3FFF;
   while (true) {
     if (!frame_mode) {
       if (!channel.recv_line(line)) {
@@ -205,6 +207,15 @@ int main() {
           interleaved[i * 2 + 1] = right[i];
         }
 
+        if (master_vol_l != 0x3FFF || master_vol_r != 0x3FFF) {
+          for (uint32_t i = 0; i < out_count; ++i) {
+            int32_t l = (static_cast<int32_t>(interleaved[i * 2]) * master_vol_l) / 0x3FFF;
+            int32_t r = (static_cast<int32_t>(interleaved[i * 2 + 1]) * master_vol_r) / 0x3FFF;
+            interleaved[i * 2] = clamp_sample(l);
+            interleaved[i * 2 + 1] = clamp_sample(r);
+          }
+        }
+
 #ifdef PS1EMU_SPU_SDL
         if (audio_enabled && audio_dev != 0) {
           uint32_t queued = SDL_GetQueuedAudioSize(audio_dev);
@@ -221,6 +232,11 @@ int main() {
           mix_buffer.insert(mix_buffer.end(), interleaved.begin(), interleaved.end());
         }
       }
+    }
+    if (type == 0x0102 && payload.size() >= 4) {
+      master_vol_l = static_cast<int16_t>(payload[0] | (payload[1] << 8));
+      master_vol_r = static_cast<int16_t>(payload[2] | (payload[3] << 8));
+      continue;
     }
   }
 

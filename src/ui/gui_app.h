@@ -64,6 +64,12 @@ private:
   EmulatorCore core_;
   bool core_ready_ = false;
   bool show_dynarec_dump_ = false;
+  bool session_running_ = false;
+  uint32_t session_cycles_per_frame_ = 33868800 / 60;
+  bool trace_enabled_ = false;
+  uint32_t trace_period_cycles_ = 1000000;
+  int trace_period_index_ = 0;
+  bool watchdog_enabled_ = false;
 
   bool bios_input_active_ = false;
   bool bios_input_dirty_ = false;
@@ -82,6 +88,16 @@ private:
   bool cdrom_picker_open_ = false;
   std::vector<std::string> cdrom_candidates_;
   int cdrom_candidate_offset_ = 0;
+
+  bool cycles_input_active_ = false;
+  bool cycles_input_dirty_ = false;
+  SDL_Rect cycles_input_rect_{0, 0, 0, 0};
+  std::string cycles_input_;
+
+  bool trace_input_active_ = false;
+  bool trace_input_dirty_ = false;
+  SDL_Rect trace_input_rect_{0, 0, 0, 0};
+  std::string trace_input_;
 };
 
 } // namespace ps1emu

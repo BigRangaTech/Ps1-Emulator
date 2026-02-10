@@ -4,7 +4,9 @@
 #include "core/xa_adpcm.h"
 
 #include <algorithm>
+#include <iomanip>
 #include <iostream>
+#include <sstream>
 
 namespace ps1emu {
 
@@ -82,18 +84,54 @@ bool EmulatorCore::initialize(const std::string &config_path) {
     std::cerr << "SPU plugin failed to enter frame mode (XA audio disabled)\n";
   }
 
+  total_cycles_ = 0;
+  next_trace_cycle_ = 0;
+  watchdog_cycle_accum_ = 0;
+  watchdog_same_pc_samples_ = 0;
+  watchdog_alt_pc_samples_ = 0;
+  watchdog_reported_ = false;
+
   return true;
 }
 
 void EmulatorCore::run_for_cycles(uint32_t cycles) {
-  for (uint32_t i = 0; i < cycles; ++i) {
+  uint32_t remaining = cycles;
+  while (remaining > 0) {
     uint32_t step_cycles = cpu_.step();
+    if (step_cycles > remaining) {
+      remaining = 0;
+    } else {
+      remaining -= step_cycles;
+    }
+
     mmio_.tick(step_cycles);
     process_dma();
+    flush_spu_controls();
     flush_xa_audio();
     flush_gpu_dma_pending();
     flush_gpu_commands();
     flush_gpu_control();
+
+    total_cycles_ += step_cycles;
+
+    if (trace_enabled_) {
+      CpuExceptionInfo ex;
+      if (cpu_.consume_exception(ex)) {
+        log_exception_event(ex);
+      }
+      if (total_cycles_ >= next_trace_cycle_) {
+        log_trace_state("tick");
+        next_trace_cycle_ = total_cycles_ + trace_period_cycles_;
+      }
+    }
+
+    if (watchdog_enabled_) {
+      watchdog_cycle_accum_ += step_cycles;
+      if (watchdog_cycle_accum_ >= watchdog_sample_cycles_) {
+        watchdog_cycle_accum_ = 0;
+        watchdog_sample();
+      }
+    }
   }
 }
 
@@ -119,6 +157,104 @@ bool EmulatorCore::send_gpu_packet(const GpuPacket &packet) {
     return false;
   }
   return true;
+}
+
+void EmulatorCore::set_trace_enabled(bool enabled) {
+  trace_enabled_ = enabled;
+  next_trace_cycle_ = total_cycles_;
+}
+
+void EmulatorCore::set_trace_period_cycles(uint32_t cycles) {
+  trace_period_cycles_ = std::max<uint32_t>(cycles, 1);
+  next_trace_cycle_ = total_cycles_;
+}
+
+void EmulatorCore::set_watchdog_enabled(bool enabled) {
+  watchdog_enabled_ = enabled;
+  watchdog_reported_ = false;
+  watchdog_same_pc_samples_ = 0;
+  watchdog_alt_pc_samples_ = 0;
+}
+
+void EmulatorCore::set_watchdog_sample_cycles(uint32_t cycles) {
+  watchdog_sample_cycles_ = std::max<uint32_t>(cycles, 1);
+}
+
+void EmulatorCore::set_watchdog_stall_cycles(uint32_t cycles) {
+  watchdog_stall_cycles_ = std::max<uint32_t>(cycles, 1);
+}
+
+void EmulatorCore::log_trace_state(const char *label) {
+  std::ostringstream oss;
+  const auto &st = cpu_.state();
+  uint32_t instr = memory_.read32(st.pc);
+  uint32_t prev_instr = memory_.read32(st.pc - 4);
+  uint32_t next_instr = memory_.read32(st.next_pc);
+  oss << "[trace] " << label << " cycles=" << total_cycles_;
+  oss << " pc=0x" << std::hex << std::setw(8) << std::setfill('0') << st.pc;
+  oss << " npc=0x" << std::hex << std::setw(8) << std::setfill('0') << st.next_pc;
+  oss << " instr=0x" << std::hex << std::setw(8) << std::setfill('0') << instr;
+  oss << " prev=0x" << std::hex << std::setw(8) << std::setfill('0') << prev_instr;
+  oss << " npc_instr=0x" << std::hex << std::setw(8) << std::setfill('0') << next_instr;
+  oss << " sr=0x" << std::hex << std::setw(8) << std::setfill('0') << st.cop0.sr;
+  oss << " cause=0x" << std::hex << std::setw(8) << std::setfill('0') << st.cop0.cause;
+  oss << " irq=0x" << std::hex << std::setw(4) << std::setfill('0') << mmio_.irq_stat();
+  oss << "/0x" << std::hex << std::setw(4) << std::setfill('0') << mmio_.irq_mask();
+  std::cout << oss.str() << "\n";
+}
+
+void EmulatorCore::log_exception_event(const CpuExceptionInfo &info) {
+  std::ostringstream oss;
+  const auto &st = cpu_.state();
+  oss << "[trace] exception code=" << info.code;
+  oss << " pc=0x" << std::hex << std::setw(8) << std::setfill('0') << info.pc;
+  oss << " badv=0x" << std::hex << std::setw(8) << std::setfill('0') << info.badvaddr;
+  oss << " in_delay=" << (info.in_delay ? "1" : "0");
+  oss << " sr=0x" << std::hex << std::setw(8) << std::setfill('0') << st.cop0.sr;
+  oss << " cause=0x" << std::hex << std::setw(8) << std::setfill('0') << info.cause;
+  std::cout << oss.str() << "\n";
+}
+
+void EmulatorCore::watchdog_sample() {
+  uint32_t pc = cpu_.state().pc;
+  if (pc == watchdog_last_pc_) {
+    watchdog_same_pc_samples_++;
+  } else {
+    watchdog_same_pc_samples_ = 0;
+    watchdog_reported_ = false;
+  }
+
+  if (pc == watchdog_prev2_pc_) {
+    watchdog_alt_pc_samples_++;
+  } else {
+    watchdog_alt_pc_samples_ = 0;
+  }
+
+  uint32_t threshold_samples =
+      (watchdog_stall_cycles_ + watchdog_sample_cycles_ - 1) / watchdog_sample_cycles_;
+
+  if (!watchdog_reported_ &&
+      (watchdog_same_pc_samples_ >= threshold_samples ||
+       watchdog_alt_pc_samples_ >= threshold_samples)) {
+    std::ostringstream oss;
+    const auto &st = cpu_.state();
+    oss << "[watchdog] possible tight loop";
+    if (watchdog_same_pc_samples_ >= threshold_samples) {
+      oss << " (same PC)";
+    } else {
+      oss << " (2-PC alternation)";
+    }
+    oss << " cycles=" << total_cycles_;
+    oss << " pc=0x" << std::hex << std::setw(8) << std::setfill('0') << st.pc;
+    oss << " sr=0x" << std::hex << std::setw(8) << std::setfill('0') << st.cop0.sr;
+    oss << " cause=0x" << std::hex << std::setw(8) << std::setfill('0') << st.cop0.cause;
+    std::cout << oss.str() << "\n";
+    watchdog_reported_ = true;
+  }
+
+  watchdog_prev2_pc_ = watchdog_prev_pc_;
+  watchdog_prev_pc_ = pc;
+  watchdog_last_pc_ = pc;
 }
 
 bool EmulatorCore::request_vram_read(uint16_t x, uint16_t y, uint16_t w, uint16_t h) {
@@ -419,6 +555,26 @@ void EmulatorCore::process_dma() {
 
     mmio_.set_dma_madr(channel, madr + total_words * 4);
   }
+}
+
+void EmulatorCore::flush_spu_controls() {
+  if (!plugin_host_.is_frame_mode(PluginType::Spu)) {
+    return;
+  }
+  uint16_t left = mmio_.spu_main_volume_left();
+  uint16_t right = mmio_.spu_main_volume_right();
+  if (left == spu_main_vol_l_ && right == spu_main_vol_r_) {
+    return;
+  }
+  spu_main_vol_l_ = left;
+  spu_main_vol_r_ = right;
+
+  std::vector<uint8_t> payload(4);
+  payload[0] = static_cast<uint8_t>(left & 0xFF);
+  payload[1] = static_cast<uint8_t>((left >> 8) & 0xFF);
+  payload[2] = static_cast<uint8_t>(right & 0xFF);
+  payload[3] = static_cast<uint8_t>((right >> 8) & 0xFF);
+  plugin_host_.send_frame(PluginType::Spu, 0x0102, payload);
 }
 
 void EmulatorCore::flush_xa_audio() {

@@ -1725,8 +1725,11 @@ CMakeFiles/ps1emu_core.dir/src/core/emu_core.cpp.o: /home/jessie/Documents/Ps1-E
   /usr/include/c++/15/bits/istream.tcc \
   /usr/include/c++/15/bits/locale_classes.h \
   /usr/include/c++/15/bits/locale_classes.tcc \
+  /usr/include/c++/15/bits/locale_conv.h \
   /usr/include/c++/15/bits/locale_facets.h \
   /usr/include/c++/15/bits/locale_facets.tcc \
+  /usr/include/c++/15/bits/locale_facets_nonio.h \
+  /usr/include/c++/15/bits/locale_facets_nonio.tcc \
   /usr/include/c++/15/bits/localefwd.h \
   /usr/include/c++/15/bits/memory_resource.h \
   /usr/include/c++/15/bits/memoryfwd.h \
@@ -1740,12 +1743,14 @@ CMakeFiles/ps1emu_core.dir/src/core/emu_core.cpp.o: /home/jessie/Documents/Ps1-E
   /usr/include/c++/15/bits/postypes.h \
   /usr/include/c++/15/bits/predefined_ops.h \
   /usr/include/c++/15/bits/ptr_traits.h \
+  /usr/include/c++/15/bits/quoted_string.h \
   /usr/include/c++/15/bits/range_access.h \
   /usr/include/c++/15/bits/refwrap.h \
   /usr/include/c++/15/bits/requires_hosted.h \
   /usr/include/c++/15/bits/shared_ptr.h \
   /usr/include/c++/15/bits/shared_ptr_atomic.h \
   /usr/include/c++/15/bits/shared_ptr_base.h \
+  /usr/include/c++/15/bits/sstream.tcc \
   /usr/include/c++/15/bits/std_abs.h \
   /usr/include/c++/15/bits/stl_algo.h \
   /usr/include/c++/15/bits/stl_algobase.h \
@@ -1783,6 +1788,7 @@ CMakeFiles/ps1emu_core.dir/src/core/emu_core.cpp.o: /home/jessie/Documents/Ps1-E
   /usr/include/c++/15/cstdint \
   /usr/include/c++/15/cstdio \
   /usr/include/c++/15/cstdlib \
+  /usr/include/c++/15/ctime \
   /usr/include/c++/15/cwchar \
   /usr/include/c++/15/cwctype \
   /usr/include/c++/15/debug/assertions.h \
@@ -1798,10 +1804,12 @@ CMakeFiles/ps1emu_core.dir/src/core/emu_core.cpp.o: /home/jessie/Documents/Ps1-E
   /usr/include/c++/15/ext/type_traits.h \
   /usr/include/c++/15/fstream \
   /usr/include/c++/15/initializer_list \
+  /usr/include/c++/15/iomanip \
   /usr/include/c++/15/ios \
   /usr/include/c++/15/iosfwd \
   /usr/include/c++/15/iostream \
   /usr/include/c++/15/istream \
+  /usr/include/c++/15/locale \
   /usr/include/c++/15/memory \
   /usr/include/c++/15/new \
   /usr/include/c++/15/ostream \
@@ -1809,6 +1817,7 @@ CMakeFiles/ps1emu_core.dir/src/core/emu_core.cpp.o: /home/jessie/Documents/Ps1-E
   /usr/include/c++/15/pstl/glue_algorithm_defs.h \
   /usr/include/c++/15/pstl/glue_memory_defs.h \
   /usr/include/c++/15/pstl/pstl_config.h \
+  /usr/include/c++/15/sstream \
   /usr/include/c++/15/stdexcept \
   /usr/include/c++/15/streambuf \
   /usr/include/c++/15/string \
@@ -1824,6 +1833,7 @@ CMakeFiles/ps1emu_core.dir/src/core/emu_core.cpp.o: /home/jessie/Documents/Ps1-E
   /usr/include/errno.h \
   /usr/include/features-time64.h \
   /usr/include/features.h \
+  /usr/include/libintl.h \
   /usr/include/linux/errno.h \
   /usr/include/linux/posix_types.h \
   /usr/include/linux/sched/types.h \
@@ -1917,7 +1927,9 @@ CMakeFiles/ps1emu_core.dir/src/core/emu_core.cpp.o: /home/jessie/Documents/Ps1-E
   /usr/include/x86_64-linux-gnu/c++/15/bits/error_constants.h \
   /usr/include/x86_64-linux-gnu/c++/15/bits/gthr-default.h \
   /usr/include/x86_64-linux-gnu/c++/15/bits/gthr.h \
+  /usr/include/x86_64-linux-gnu/c++/15/bits/messages_members.h \
   /usr/include/x86_64-linux-gnu/c++/15/bits/os_defines.h \
+  /usr/include/x86_64-linux-gnu/c++/15/bits/time_members.h \
   /usr/include/x86_64-linux-gnu/gnu/stubs-64.h \
   /usr/include/x86_64-linux-gnu/gnu/stubs.h \
   /usr/include/x86_64-linux-gnu/sys/cdefs.h \

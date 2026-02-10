@@ -18,6 +18,10 @@
 - Scheduler + timing (DMA, timers, approximate GPU field timing)
 - BIOS loading
 
+## CPU Notes
+- Reset sets the boot PC to `0xBFC00000` and enables the BEV vector so early exceptions land in the BIOS.
+- The COP0 `Isc` (cache isolate) bit suppresses memory writes (cache is not modeled).
+
 ## Plugin Responsibilities
 - GPU: GP0/GP1 command processor, VRAM model, display output
 - SPU: audio synthesis
@@ -72,3 +76,5 @@
 - GetlocL/GetlocP return additional metadata (mode/file/channel/submode/coding/track/index).
 - XA ADPCM sectors are decoded into 16-bit PCM in the core, resampled to the nominal rate, and forwarded to the SPU plugin.
 - Seek/ReadTOC/GetID simulate delayed completion with a queued IRQ, while ReadN/ReadS report an acknowledge IRQ before data-ready.
+- GetID returns a basic licensed disc payload including an `SCEx` region tag.
+- ReadTOC returns a minimal payload containing first/last track numbers and lead-out time.

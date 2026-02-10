@@ -57,6 +57,13 @@ std::string CdromImage::to_lower(std::string value) {
   return value;
 }
 
+std::string CdromImage::to_upper(std::string value) {
+  for (char &ch : value) {
+    ch = static_cast<char>(std::toupper(static_cast<unsigned char>(ch)));
+  }
+  return value;
+}
+
 bool CdromImage::loaded() const {
   return file_.is_open() && track_.sector_size > 0;
 }
@@ -90,6 +97,41 @@ uint32_t CdromImage::end_lba() const {
     return 0;
   }
   return static_cast<uint32_t>(end);
+}
+
+char CdromImage::region_code() const {
+  std::string upper = to_upper(track_.path);
+  if (upper.find("SLUS") != std::string::npos || upper.find("SCUS") != std::string::npos ||
+      upper.find("SLES") != std::string::npos || upper.find("SCES") != std::string::npos ||
+      upper.find("SLPS") != std::string::npos || upper.find("SLPM") != std::string::npos ||
+      upper.find("SCPS") != std::string::npos || upper.find("SCPM") != std::string::npos) {
+    if (upper.find("SLUS") != std::string::npos || upper.find("SCUS") != std::string::npos) {
+      return 'A';
+    }
+    if (upper.find("SLES") != std::string::npos || upper.find("SCES") != std::string::npos) {
+      return 'E';
+    }
+    if (upper.find("SLPS") != std::string::npos || upper.find("SLPM") != std::string::npos ||
+        upper.find("SCPS") != std::string::npos || upper.find("SCPM") != std::string::npos) {
+      return 'I';
+    }
+  }
+  return 'I';
+}
+
+uint8_t CdromImage::first_track() const {
+  return loaded() ? 1 : 0;
+}
+
+uint8_t CdromImage::last_track() const {
+  return loaded() ? 1 : 0;
+}
+
+uint32_t CdromImage::leadout_lba() const {
+  if (!loaded()) {
+    return 0;
+  }
+  return end_lba() + 1;
 }
 
 bool CdromImage::open_track_file(const std::string &path, std::string &error) {

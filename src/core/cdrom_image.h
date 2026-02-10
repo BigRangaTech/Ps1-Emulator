@@ -19,6 +19,10 @@ public:
   int32_t start_lba() const;
   uint32_t total_sectors() const;
   uint32_t end_lba() const;
+  char region_code() const;
+  uint8_t first_track() const;
+  uint8_t last_track() const;
+  uint32_t leadout_lba() const;
 
 private:
   struct TrackInfo {
@@ -35,6 +39,7 @@ private:
   bool open_track_file(const std::string &path, std::string &error);
 
   static std::string to_lower(std::string value);
+  static std::string to_upper(std::string value);
   static std::string trim(const std::string &value);
 
   TrackInfo track_;

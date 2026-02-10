@@ -4,7 +4,9 @@
 #include "ui/sdl_backend.h"
 
 #include <algorithm>
+#include <cctype>
 #include <iostream>
+#include <limits>
 
 namespace ps1emu {
 
@@ -17,6 +19,49 @@ SDL_Color rgb(uint8_t r, uint8_t g, uint8_t b, uint8_t a = 255) {
   color.b = b;
   color.a = a;
   return color;
+}
+
+constexpr uint32_t kCyclesMin = 1;
+constexpr uint32_t kCyclesMax = 200000000;
+constexpr uint32_t kTraceMin = 1;
+constexpr uint32_t kTraceMax = 100000000;
+
+bool parse_uint32(const std::string &text, uint32_t &out) {
+  std::string trimmed;
+  trimmed.reserve(text.size());
+  for (char ch : text) {
+    if (!std::isspace(static_cast<unsigned char>(ch))) {
+      trimmed.push_back(ch);
+    }
+  }
+  if (trimmed.empty()) {
+    return false;
+  }
+  for (char ch : trimmed) {
+    if (!std::isdigit(static_cast<unsigned char>(ch))) {
+      return false;
+    }
+  }
+  try {
+    unsigned long long value = std::stoull(trimmed);
+    if (value > std::numeric_limits<uint32_t>::max()) {
+      return false;
+    }
+    out = static_cast<uint32_t>(value);
+    return true;
+  } catch (...) {
+    return false;
+  }
+}
+
+bool validate_uint32_range(const std::string &text, uint32_t min_value, uint32_t max_value, uint32_t &out) {
+  if (!parse_uint32(text, out)) {
+    return false;
+  }
+  if (out < min_value || out > max_value) {
+    return false;
+  }
+  return true;
 }
 
 } // namespace
@@ -32,9 +77,14 @@ bool GuiApp::run(const std::string &config_path) {
     status_message_ = "Failed to initialize core. Check config.";
   } else {
     status_message_ = "Core initialized.";
+    core_.set_trace_enabled(trace_enabled_);
+    core_.set_trace_period_cycles(trace_period_cycles_);
+    core_.set_watchdog_enabled(watchdog_enabled_);
   }
   bios_input_ = core_.config().bios_path;
   cdrom_input_ = core_.config().cdrom_image;
+  cycles_input_ = std::to_string(session_cycles_per_frame_);
+  trace_input_ = std::to_string(trace_period_cycles_);
 
   bool running = true;
   while (running) {
@@ -42,6 +92,10 @@ bool GuiApp::run(const std::string &config_path) {
     SDL_Event event;
     while (SDL_PollEvent(&event)) {
       handle_event(event, running);
+    }
+
+    if (core_ready_ && session_running_) {
+      core_.run_for_cycles(session_cycles_per_frame_);
     }
 
     render();
@@ -130,7 +184,13 @@ void GuiApp::handle_event(const SDL_Event &event, bool &running) {
       mouse_y_ = event.motion.y;
       break;
     case SDL_TEXTINPUT:
-      if (bios_input_active_) {
+      if (cycles_input_active_) {
+        cycles_input_ += event.text.text;
+        cycles_input_dirty_ = true;
+      } else if (trace_input_active_) {
+        trace_input_ += event.text.text;
+        trace_input_dirty_ = true;
+      } else if (bios_input_active_) {
         bios_input_ += event.text.text;
         bios_input_dirty_ = true;
       } else if (cdrom_input_active_) {
@@ -139,7 +199,33 @@ void GuiApp::handle_event(const SDL_Event &event, bool &running) {
       }
       break;
     case SDL_KEYDOWN:
-      if (bios_input_active_) {
+      if (cycles_input_active_) {
+        if (event.key.keysym.sym == SDLK_BACKSPACE && !cycles_input_.empty()) {
+          cycles_input_.pop_back();
+          cycles_input_dirty_ = true;
+        } else if (event.key.keysym.sym == SDLK_RETURN || event.key.keysym.sym == SDLK_KP_ENTER) {
+          cycles_input_active_ = false;
+          SDL_StopTextInput();
+        } else if (event.key.keysym.sym == SDLK_ESCAPE) {
+          cycles_input_ = std::to_string(session_cycles_per_frame_);
+          cycles_input_dirty_ = false;
+          cycles_input_active_ = false;
+          SDL_StopTextInput();
+        }
+      } else if (trace_input_active_) {
+        if (event.key.keysym.sym == SDLK_BACKSPACE && !trace_input_.empty()) {
+          trace_input_.pop_back();
+          trace_input_dirty_ = true;
+        } else if (event.key.keysym.sym == SDLK_RETURN || event.key.keysym.sym == SDLK_KP_ENTER) {
+          trace_input_active_ = false;
+          SDL_StopTextInput();
+        } else if (event.key.keysym.sym == SDLK_ESCAPE) {
+          trace_input_ = std::to_string(trace_period_cycles_);
+          trace_input_dirty_ = false;
+          trace_input_active_ = false;
+          SDL_StopTextInput();
+        }
+      } else if (bios_input_active_) {
         if (event.key.keysym.sym == SDLK_BACKSPACE && !bios_input_.empty()) {
           bios_input_.pop_back();
           bios_input_dirty_ = true;
@@ -588,26 +674,213 @@ void GuiApp::draw_session_view() {
   draw_text(panel.x + 24, panel.y + 18, "Session", rgb(27, 27, 27), 20, true);
   draw_text(panel.x + 24, panel.y + 52, "Controls", rgb(88, 88, 88), 16, false);
 
-  SDL_Rect run60{panel.x + 24, panel.y + 88, 200, 44};
-  SDL_Rect run1000{panel.x + 24, panel.y + 144, 200, 44};
-  SDL_Rect dump{panel.x + 24, panel.y + 200, 200, 44};
+  SDL_Rect run_toggle{panel.x + 24, panel.y + 88, 200, 44};
+  SDL_Rect run_frame{panel.x + 24, panel.y + 144, 200, 44};
+  SDL_Rect run60{panel.x + 24, panel.y + 200, 200, 44};
+  SDL_Rect run1000{panel.x + 24, panel.y + 256, 200, 44};
+  SDL_Rect dump{panel.x + 24, panel.y + 312, 200, 44};
 
+  if (draw_button(run_toggle, session_running_ ? "Stop Run" : "Start Run")) {
+    if (!core_ready_) {
+      status_message_ = "Core not initialized.";
+    } else {
+      session_running_ = !session_running_;
+      status_message_ = session_running_ ? "Running (per-frame cycles)." : "Run paused.";
+    }
+  }
+  if (draw_button(run_frame, "Run 1 frame")) {
+    if (!core_ready_) {
+      status_message_ = "Core not initialized.";
+    } else {
+      core_.run_for_cycles(session_cycles_per_frame_);
+      status_message_ = "Ran one frame of CPU cycles.";
+    }
+  }
   if (draw_button(run60, "Run 60 cycles")) {
-    core_.run_for_cycles(60);
-    status_message_ = "Ran 60 cycles.";
+    if (!core_ready_) {
+      status_message_ = "Core not initialized.";
+    } else {
+      core_.run_for_cycles(60);
+      status_message_ = "Ran 60 cycles.";
+    }
   }
   if (draw_button(run1000, "Run 1000 cycles")) {
-    core_.run_for_cycles(1000);
-    status_message_ = "Ran 1000 cycles.";
+    if (!core_ready_) {
+      status_message_ = "Core not initialized.";
+    } else {
+      core_.run_for_cycles(1000);
+      status_message_ = "Ran 1000 cycles.";
+    }
   }
   if (draw_button(dump, "Dump dynarec")) {
     core_.dump_dynarec_profile();
     status_message_ = "Dynarec profile dumped to console.";
   }
 
-  draw_text(panel.x + 260, panel.y + 88, "Plugin status", rgb(88, 88, 88), 16, false);
-  draw_text(panel.x + 260, panel.y + 120, core_ready_ ? "Core online" : "Core offline",
+  draw_text(panel.x + 260, panel.y + 88, "Runtime", rgb(88, 88, 88), 16, false);
+  draw_text(panel.x + 260, panel.y + 112, "Cycles/frame", rgb(88, 88, 88), 14, false);
+  std::string cycles_hint = "Min " + std::to_string(kCyclesMin) + " Max " + std::to_string(kCyclesMax);
+  draw_text(panel.x + 420, panel.y + 112, cycles_hint, rgb(120, 120, 120), 12, false);
+
+  uint32_t parsed_cycles = 0;
+  bool cycles_valid = validate_uint32_range(cycles_input_, kCyclesMin, kCyclesMax, parsed_cycles);
+  bool cycles_invalid = cycles_input_dirty_ && !cycles_valid;
+
+  cycles_input_rect_ = SDL_Rect{panel.x + 260, panel.y + 132, 140, 32};
+  SDL_Color cycles_box = cycles_invalid ? rgb(255, 230, 230)
+                                        : (cycles_input_active_ ? rgb(255, 248, 242) : rgb(246, 243, 239));
+  SDL_Color cycles_border = cycles_invalid ? rgb(200, 60, 60)
+                                           : (cycles_input_active_ ? rgb(214, 110, 44) : rgb(220, 220, 220));
+  fill_rect(cycles_input_rect_, cycles_box);
+  draw_rect(cycles_input_rect_, cycles_border, 1);
+  std::string cycles_text = cycles_input_.empty() ? "33868800" : cycles_input_;
+  SDL_Color cycles_color = cycles_input_.empty() ? rgb(150, 150, 150) : rgb(27, 27, 27);
+  draw_text(cycles_input_rect_.x + 8, cycles_input_rect_.y + 7, cycles_text, cycles_color, 14, false);
+
+  SDL_Rect cycles_apply{panel.x + 410, panel.y + 132, 108, 32};
+  if (draw_button(cycles_apply, "Apply")) {
+    if (!validate_uint32_range(cycles_input_, kCyclesMin, kCyclesMax, parsed_cycles)) {
+      status_message_ = "Cycles/frame must be between " + std::to_string(kCyclesMin) + " and " +
+                        std::to_string(kCyclesMax) + ".";
+      cycles_input_dirty_ = true;
+    } else {
+      session_cycles_per_frame_ = parsed_cycles;
+      cycles_input_ = std::to_string(session_cycles_per_frame_);
+      cycles_input_dirty_ = false;
+      status_message_ = "Cycles/frame updated.";
+    }
+  }
+
+  SDL_Rect rate1{panel.x + 260, panel.y + 172, 60, 32};
+  SDL_Rect rate2{panel.x + 326, panel.y + 172, 60, 32};
+  SDL_Rect rate4{panel.x + 392, panel.y + 172, 60, 32};
+  SDL_Rect rate8{panel.x + 458, panel.y + 172, 60, 32};
+
+  if (draw_button(rate1, "1x")) {
+    session_cycles_per_frame_ = 33868800 / 60;
+    cycles_input_ = std::to_string(session_cycles_per_frame_);
+    cycles_input_dirty_ = false;
+    status_message_ = "Cycles/frame set to 1x.";
+  }
+  if (draw_button(rate2, "2x")) {
+    session_cycles_per_frame_ = (33868800 / 60) * 2;
+    cycles_input_ = std::to_string(session_cycles_per_frame_);
+    cycles_input_dirty_ = false;
+    status_message_ = "Cycles/frame set to 2x.";
+  }
+  if (draw_button(rate4, "4x")) {
+    session_cycles_per_frame_ = (33868800 / 60) * 4;
+    cycles_input_ = std::to_string(session_cycles_per_frame_);
+    cycles_input_dirty_ = false;
+    status_message_ = "Cycles/frame set to 4x.";
+  }
+  if (draw_button(rate8, "8x")) {
+    session_cycles_per_frame_ = (33868800 / 60) * 8;
+    cycles_input_ = std::to_string(session_cycles_per_frame_);
+    cycles_input_dirty_ = false;
+    status_message_ = "Cycles/frame set to 8x.";
+  }
+
+  draw_text(panel.x + 260, panel.y + 216, "Trace period (cycles)", rgb(88, 88, 88), 14, false);
+  std::string trace_hint = "Min " + std::to_string(kTraceMin) + " Max " + std::to_string(kTraceMax);
+  draw_text(panel.x + 420, panel.y + 216, trace_hint, rgb(120, 120, 120), 12, false);
+
+  uint32_t parsed_trace = 0;
+  bool trace_valid = validate_uint32_range(trace_input_, kTraceMin, kTraceMax, parsed_trace);
+  bool trace_invalid = trace_input_dirty_ && !trace_valid;
+  trace_input_rect_ = SDL_Rect{panel.x + 260, panel.y + 236, 140, 32};
+  SDL_Color trace_box = trace_invalid ? rgb(255, 230, 230)
+                                      : (trace_input_active_ ? rgb(255, 248, 242) : rgb(246, 243, 239));
+  SDL_Color trace_border = trace_invalid ? rgb(200, 60, 60)
+                                         : (trace_input_active_ ? rgb(214, 110, 44) : rgb(220, 220, 220));
+  fill_rect(trace_input_rect_, trace_box);
+  draw_rect(trace_input_rect_, trace_border, 1);
+  std::string trace_text = trace_input_.empty() ? "1000000" : trace_input_;
+  SDL_Color trace_color = trace_input_.empty() ? rgb(150, 150, 150) : rgb(27, 27, 27);
+  draw_text(trace_input_rect_.x + 8, trace_input_rect_.y + 7, trace_text, trace_color, 14, false);
+
+  SDL_Rect trace_apply{panel.x + 410, panel.y + 236, 108, 32};
+  if (draw_button(trace_apply, "Apply")) {
+    if (!validate_uint32_range(trace_input_, kTraceMin, kTraceMax, parsed_trace)) {
+      status_message_ = "Trace period must be between " + std::to_string(kTraceMin) + " and " +
+                        std::to_string(kTraceMax) + ".";
+      trace_input_dirty_ = true;
+    } else {
+      trace_period_cycles_ = parsed_trace;
+      trace_input_ = std::to_string(trace_period_cycles_);
+      trace_input_dirty_ = false;
+      if (core_ready_) {
+        core_.set_trace_period_cycles(trace_period_cycles_);
+      }
+      status_message_ = "Trace period updated.";
+    }
+  }
+
+  SDL_Rect trace_preset{panel.x + 260, panel.y + 276, 220, 32};
+  if (draw_button(trace_preset, "Trace presets")) {
+    static const uint32_t periods[] = {1000000, 250000, 50000, 10000};
+    const int period_count = static_cast<int>(sizeof(periods) / sizeof(periods[0]));
+    trace_period_index_ = (trace_period_index_ + 1) % period_count;
+    trace_period_cycles_ = periods[trace_period_index_];
+    trace_input_ = std::to_string(trace_period_cycles_);
+    trace_input_dirty_ = false;
+    if (core_ready_) {
+      core_.set_trace_period_cycles(trace_period_cycles_);
+    }
+    status_message_ = "Trace period updated.";
+  }
+
+  SDL_Rect trace_btn{panel.x + 260, panel.y + 316, 220, 36};
+  SDL_Rect watchdog_btn{panel.x + 260, panel.y + 360, 220, 36};
+  SDL_Rect core_status{panel.x + 260, panel.y + 412, 220, 36};
+  if (draw_button(trace_btn, trace_enabled_ ? "Trace: On" : "Trace: Off")) {
+    trace_enabled_ = !trace_enabled_;
+    if (core_ready_) {
+      core_.set_trace_enabled(trace_enabled_);
+    }
+    status_message_ = trace_enabled_ ? "CPU trace enabled." : "CPU trace disabled.";
+  }
+  if (draw_button(watchdog_btn, watchdog_enabled_ ? "Watchdog: On" : "Watchdog: Off")) {
+    watchdog_enabled_ = !watchdog_enabled_;
+    if (core_ready_) {
+      core_.set_watchdog_enabled(watchdog_enabled_);
+    }
+    status_message_ = watchdog_enabled_ ? "Boot watchdog enabled." : "Boot watchdog disabled.";
+  }
+
+  fill_rect(core_status, rgb(246, 243, 239));
+  draw_rect(core_status, rgb(220, 220, 220), 1);
+  draw_text(core_status.x + 12, core_status.y + 10,
+            core_ready_ ? "Core online" : "Core offline",
             core_ready_ ? rgb(47, 110, 122) : rgb(214, 110, 44), 14, true);
+
+  if (mouse_pressed_) {
+    bool inside_cycles = mouse_x_ >= cycles_input_rect_.x &&
+                         mouse_x_ < cycles_input_rect_.x + cycles_input_rect_.w &&
+                         mouse_y_ >= cycles_input_rect_.y &&
+                         mouse_y_ < cycles_input_rect_.y + cycles_input_rect_.h;
+    bool inside_trace = mouse_x_ >= trace_input_rect_.x &&
+                        mouse_x_ < trace_input_rect_.x + trace_input_rect_.w &&
+                        mouse_y_ >= trace_input_rect_.y &&
+                        mouse_y_ < trace_input_rect_.y + trace_input_rect_.h;
+    if (inside_cycles) {
+      cycles_input_active_ = true;
+      trace_input_active_ = false;
+      bios_input_active_ = false;
+      cdrom_input_active_ = false;
+      SDL_StartTextInput();
+    } else if (inside_trace) {
+      trace_input_active_ = true;
+      cycles_input_active_ = false;
+      bios_input_active_ = false;
+      cdrom_input_active_ = false;
+      SDL_StartTextInput();
+    } else if (cycles_input_active_ || trace_input_active_) {
+      cycles_input_active_ = false;
+      trace_input_active_ = false;
+      SDL_StopTextInput();
+    }
+  }
 }
 
 bool GuiApp::draw_button(const SDL_Rect &rect, const std::string &label) {

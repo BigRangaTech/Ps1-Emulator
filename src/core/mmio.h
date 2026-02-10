@@ -56,6 +56,8 @@ public:
   bool load_cdrom_image(const std::string &path, std::string &error);
   size_t read_cdrom_data(uint8_t *dst, size_t len);
   bool pop_xa_audio(XaAudioSector &out);
+  uint16_t spu_main_volume_left() const;
+  uint16_t spu_main_volume_right() const;
 
 private:
   enum class CdromFillResult {

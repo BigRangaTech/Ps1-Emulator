@@ -12,6 +12,14 @@
 
 namespace ps1emu {
 
+struct CpuExceptionInfo {
+  uint32_t code = 0;
+  uint32_t pc = 0;
+  uint32_t badvaddr = 0;
+  bool in_delay = false;
+  uint32_t cause = 0;
+};
+
 class CpuCore {
 public:
   enum class Mode {
@@ -26,6 +34,7 @@ public:
   Mode mode() const;
   CpuState &state();
   std::vector<JitBlock> dynarec_blocks() const;
+  bool consume_exception(CpuExceptionInfo &out);
 
   uint32_t step();
 
@@ -77,6 +86,8 @@ private:
   uint32_t load_delay_shadow_value_ = 0;
   bool branch_pending_ = false;
   bool skip_next_ = false;
+  bool exception_pending_ = false;
+  CpuExceptionInfo last_exception_;
 };
 
 } // namespace ps1emu

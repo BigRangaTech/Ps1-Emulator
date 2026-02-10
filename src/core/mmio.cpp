@@ -749,7 +749,19 @@ void MmioBus::cdrom_execute_command(uint8_t cmd) {
     case 0x1A: { // GetID
       cdrom_push_response(cdrom_status());
       cdrom_raise_irq(0x04);
-      cdrom_queue_response(kCdromGetIdDelayCycles, 0x01, {cdrom_status(), 0x00, 0x20, 0x00, 0x00});
+      uint8_t disc_type = cdrom_image_.loaded() ? 0x20 : 0x00;
+      char region = cdrom_image_.loaded() ? cdrom_image_.region_code() : 'I';
+      std::vector<uint8_t> response = {
+          cdrom_status(),
+          0x00,
+          disc_type,
+          0x00,
+          static_cast<uint8_t>('S'),
+          static_cast<uint8_t>('C'),
+          static_cast<uint8_t>('E'),
+          static_cast<uint8_t>(region),
+      };
+      cdrom_queue_response(kCdromGetIdDelayCycles, 0x01, std::move(response));
       break;
     }
     case 0x1C: { // Reset
@@ -780,7 +792,19 @@ void MmioBus::cdrom_execute_command(uint8_t cmd) {
       cdrom_seeking_ = true;
       cdrom_push_response(cdrom_status());
       cdrom_raise_irq(0x04);
-      cdrom_queue_response(kCdromTocDelayCycles, 0x01, {cdrom_status()}, true);
+      uint8_t first_track = cdrom_image_.first_track();
+      uint8_t last_track = cdrom_image_.last_track();
+      uint8_t mm = 0, ss = 0, ff = 0;
+      lba_to_bcd(cdrom_image_.leadout_lba(), mm, ss, ff);
+      std::vector<uint8_t> response = {
+          cdrom_status(),
+          first_track,
+          last_track,
+          mm,
+          ss,
+          ff,
+      };
+      cdrom_queue_response(kCdromTocDelayCycles, 0x01, std::move(response), true);
       break;
     }
     default: {
@@ -943,12 +967,17 @@ void MmioBus::write8(uint32_t addr, uint8_t value) {
     } else if (reg == 2) {
       cdrom_param_fifo_.push_back(value);
     } else if (reg == 3) {
-      cdrom_irq_enable_ = static_cast<uint8_t>(value & 0x1Fu);
-      uint8_t ack = static_cast<uint8_t>(value & 0x1Fu);
-      if (ack) {
-        cdrom_irq_flags_ &= static_cast<uint8_t>(~ack);
-        if ((cdrom_irq_flags_ & cdrom_irq_enable_) == 0) {
-          irq_stat_ &= static_cast<uint16_t>(~(1u << 2));
+      uint8_t bits = static_cast<uint8_t>(value & 0x1Fu);
+      if ((value & 0x80u) == 0) {
+        cdrom_irq_enable_ = bits;
+      }
+      if (value & 0x80u) {
+        uint8_t ack = bits;
+        if (ack) {
+          cdrom_irq_flags_ &= static_cast<uint8_t>(~ack);
+          if ((cdrom_irq_flags_ & cdrom_irq_enable_) == 0) {
+            irq_stat_ &= static_cast<uint16_t>(~(1u << 2));
+          }
         }
       }
     }
@@ -1203,6 +1232,7 @@ uint16_t MmioBus::irq_mask() const {
 void MmioBus::tick(uint32_t cycles) {
   constexpr uint32_t kCpuCyclesPerFrameNtsc = 33868800 / 60;
   constexpr uint32_t kCpuCyclesPerFramePal = 33868800 / 50;
+  bool vblank_pulse = false;
 
   if (gpu_busy_cycles_ > 0) {
     if (gpu_busy_cycles_ > cycles) {
@@ -1233,10 +1263,12 @@ void MmioBus::tick(uint32_t cycles) {
       while (gpu_field_cycle_accum_ >= field_period) {
         gpu_field_cycle_accum_ -= field_period;
         gpu_field_ = !gpu_field_;
+        vblank_pulse = true;
       }
     } else {
       gpu_field_cycle_accum_ %= field_period;
       gpu_field_ = false;
+      vblank_pulse = true;
     }
   }
 
@@ -1299,6 +1331,10 @@ void MmioBus::tick(uint32_t cycles) {
       cdrom_raise_irq(pending.irq_flags);
       cdrom_pending_.pop_front();
     }
+  }
+
+  if (vblank_pulse) {
+    irq_stat_ |= 1u << 0;
   }
 }
 
@@ -1374,6 +1410,18 @@ bool MmioBus::pop_xa_audio(XaAudioSector &out) {
   out = std::move(cdrom_xa_audio_queue_.front());
   cdrom_xa_audio_queue_.pop_front();
   return true;
+}
+
+uint16_t MmioBus::spu_main_volume_left() const {
+  constexpr uint32_t kSpuMainVolLeft = 0x1F801D80;
+  uint32_t index = (kSpuMainVolLeft - 0x1F801C00) / 2;
+  return index < spu_regs_.size() ? spu_regs_[index] : 0;
+}
+
+uint16_t MmioBus::spu_main_volume_right() const {
+  constexpr uint32_t kSpuMainVolRight = 0x1F801D82;
+  uint32_t index = (kSpuMainVolRight - 0x1F801C00) / 2;
+  return index < spu_regs_.size() ? spu_regs_[index] : 0;
 }
 
 bool MmioBus::has_gpu_commands() const {

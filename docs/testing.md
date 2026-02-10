@@ -17,7 +17,7 @@ Set the frame dump environment variables when launching the emulator:
 ```bash
 export PS1EMU_FRAME_DUMP_DIR=./frame_dumps
 export PS1EMU_FRAME_DUMP_EVERY=30
-./build/ps1emu --config ps1emu.conf
+./build/ps1emu --config ps1emu.conf --frames 60
 ```
 
 Notes:
