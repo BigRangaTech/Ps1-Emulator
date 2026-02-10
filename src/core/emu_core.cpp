@@ -1,6 +1,7 @@
 #include "core/emu_core.h"
 
 #include "core/gpu_packets.h"
+#include "core/xa_adpcm.h"
 
 #include <algorithm>
 #include <iostream>
@@ -8,6 +9,40 @@
 namespace ps1emu {
 
 EmulatorCore::EmulatorCore() : cpu_(memory_, scheduler_) {}
+
+static int16_t clamp_sample(int32_t value) {
+  if (value > 32767) {
+    return 32767;
+  }
+  if (value < -32768) {
+    return -32768;
+  }
+  return static_cast<int16_t>(value);
+}
+
+static std::vector<int16_t> resample_linear(const std::vector<int16_t> &in, uint32_t out_count) {
+  if (out_count == 0 || in.empty()) {
+    return {};
+  }
+  if (in.size() == 1) {
+    return std::vector<int16_t>(out_count, in[0]);
+  }
+  if (out_count == in.size()) {
+    return in;
+  }
+  std::vector<int16_t> out(out_count);
+  double scale = static_cast<double>(in.size() - 1) / static_cast<double>(out_count - 1);
+  for (uint32_t i = 0; i < out_count; ++i) {
+    double pos = static_cast<double>(i) * scale;
+    size_t idx = static_cast<size_t>(pos);
+    double frac = pos - static_cast<double>(idx);
+    int32_t a = in[idx];
+    int32_t b = in[std::min(idx + 1, in.size() - 1)];
+    int32_t interp = static_cast<int32_t>(a + (b - a) * frac);
+    out[i] = clamp_sample(interp);
+  }
+  return out;
+}
 
 bool EmulatorCore::initialize(const std::string &config_path) {
   if (!load_and_apply_config(config_path)) {
@@ -43,6 +78,9 @@ bool EmulatorCore::initialize(const std::string &config_path) {
     std::cerr << "GPU plugin failed to enter frame mode\n";
     return false;
   }
+  if (!plugin_host_.enter_frame_mode(PluginType::Spu)) {
+    std::cerr << "SPU plugin failed to enter frame mode (XA audio disabled)\n";
+  }
 
   return true;
 }
@@ -52,6 +90,7 @@ void EmulatorCore::run_for_cycles(uint32_t cycles) {
     uint32_t step_cycles = cpu_.step();
     mmio_.tick(step_cycles);
     process_dma();
+    flush_xa_audio();
     flush_gpu_dma_pending();
     flush_gpu_commands();
     flush_gpu_control();
@@ -379,6 +418,74 @@ void EmulatorCore::process_dma() {
     }
 
     mmio_.set_dma_madr(channel, madr + total_words * 4);
+  }
+}
+
+void EmulatorCore::flush_xa_audio() {
+  ps1emu::MmioBus::XaAudioSector sector;
+  while (mmio_.pop_xa_audio(sector)) {
+    if (!plugin_host_.is_frame_mode(PluginType::Spu)) {
+      continue;
+    }
+
+    uint16_t key = static_cast<uint16_t>((sector.file << 8) | sector.channel);
+    XaDecodeState &state = xa_decode_states_[key];
+    XaDecodeInfo info;
+    std::vector<int16_t> left;
+    std::vector<int16_t> right;
+    if (!decode_xa_adpcm(sector.data.data(), sector.data.size(), sector.coding, state, info, left, right)) {
+      continue;
+    }
+
+    uint16_t sample_rate = info.sample_rate;
+    uint8_t channels = info.channels;
+    uint32_t expected = sample_rate / 75;
+    if (expected > 0 && !left.empty()) {
+      left = resample_linear(left, expected);
+      if (channels == 2) {
+        if (right.empty()) {
+          right = left;
+        } else {
+          right = resample_linear(right, expected);
+        }
+      }
+    }
+
+    if (left.empty()) {
+      continue;
+    }
+
+    uint32_t sample_count = static_cast<uint32_t>(left.size());
+
+    std::vector<uint8_t> payload;
+    payload.reserve(12 + sample_count * channels * 2);
+    payload.push_back(static_cast<uint8_t>(sector.lba & 0xFF));
+    payload.push_back(static_cast<uint8_t>((sector.lba >> 8) & 0xFF));
+    payload.push_back(static_cast<uint8_t>((sector.lba >> 16) & 0xFF));
+    payload.push_back(static_cast<uint8_t>((sector.lba >> 24) & 0xFF));
+    payload.push_back(static_cast<uint8_t>(sample_rate & 0xFF));
+    payload.push_back(static_cast<uint8_t>((sample_rate >> 8) & 0xFF));
+    payload.push_back(channels);
+    payload.push_back(0x00);
+    payload.push_back(static_cast<uint8_t>(sample_count & 0xFF));
+    payload.push_back(static_cast<uint8_t>((sample_count >> 8) & 0xFF));
+    payload.push_back(static_cast<uint8_t>((sample_count >> 16) & 0xFF));
+    payload.push_back(static_cast<uint8_t>((sample_count >> 24) & 0xFF));
+
+    for (uint32_t i = 0; i < sample_count; ++i) {
+      int16_t l = left[i];
+      payload.push_back(static_cast<uint8_t>(l & 0xFF));
+      payload.push_back(static_cast<uint8_t>((l >> 8) & 0xFF));
+      if (channels == 2) {
+        int16_t r = (i < right.size()) ? right[i] : l;
+        payload.push_back(static_cast<uint8_t>(r & 0xFF));
+        payload.push_back(static_cast<uint8_t>((r >> 8) & 0xFF));
+      }
+    }
+
+    if (!plugin_host_.send_frame(PluginType::Spu, 0x0101, payload)) {
+      break;
+    }
   }
 }
 

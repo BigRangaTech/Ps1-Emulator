@@ -46,6 +46,10 @@ Payload follows the header. Maximum payload size is 16 MiB.
 - `0x0003` GPU control buffer (payload is raw 32-bit GP1 words)
 - `0x0004` GPU VRAM read request (payload: x,y,w,h as little-endian uint16)
 - `0x0005` GPU VRAM read response (payload: raw 16-bit pixel data, little-endian)
+- `0x0100` SPU XA audio sector (payload: `u32 lba`, `u8 mode`, `u8 file`, `u8 channel`, `u8 submode`,
+  `u8 coding`, `u8 reserved`, `u16 data_len`, followed by XA audio bytes)
+- `0x0101` SPU PCM chunk (payload: `u32 lba`, `u16 sample_rate`, `u8 channels`, `u8 reserved`,
+  `u32 sample_count`, followed by interleaved `s16le` PCM samples)
 
 Notes:
 - GP1 display commands (start/range/mode) are forwarded via `0x0003`.

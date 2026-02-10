@@ -16,6 +16,7 @@ CMakeFiles/ps1emu.dir/src/main.cpp.o: /home/jessie/Documents/Ps1-Emulator/src/ma
   /home/jessie/Documents/Ps1-Emulator/src/core/memory_map.h \
   /home/jessie/Documents/Ps1-Emulator/src/core/mmio.h \
   /home/jessie/Documents/Ps1-Emulator/src/core/scheduler.h \
+  /home/jessie/Documents/Ps1-Emulator/src/core/xa_adpcm.h \
   /home/jessie/Documents/Ps1-Emulator/src/plugins/ipc.h \
   /home/jessie/Documents/Ps1-Emulator/src/plugins/plugin_host.h \
   /usr/include/alloca.h \
@@ -300,6 +301,8 @@ ps1emu: /lib/x86_64-linux-gnu/libc.so.6 \
 
 /usr/lib/gcc/x86_64-linux-gnu/15/include/stdarg.h:
 
+/usr/include/x86_64-linux-gnu/sys/types.h:
+
 /usr/include/c++/15/ext/atomicity.h:
 
 /usr/include/c++/15/bits/enable_special_members.h:
@@ -410,19 +413,15 @@ libps1emu_core.a:
 
 /usr/include/c++/15/backward/auto_ptr.h:
 
-/usr/include/c++/15/bits/std_abs.h:
-
-/usr/include/c++/15/typeinfo:
-
 /usr/include/c++/15/bits/localefwd.h:
 
 /home/jessie/Documents/Ps1-Emulator/src/core/config_paths.h:
 
+/usr/include/c++/15/bits/alloc_traits.h:
+
 /usr/include/c++/15/bits/stringfwd.h:
 
 /usr/include/c++/15/bits/erase_if.h:
-
-/usr/include/c++/15/bits/alloc_traits.h:
 
 /usr/lib/x86_64-linux-gnu/libm.so:
 
@@ -437,12 +436,6 @@ libps1emu_core.a:
 /home/jessie/Documents/Ps1-Emulator/src/core/memory_map.h:
 
 /usr/include/asm-generic/errno-base.h:
-
-/usr/include/x86_64-linux-gnu/bits/types/sigset_t.h:
-
-/usr/include/asm-generic/bitsperlong.h:
-
-/usr/include/asm-generic/types.h:
 
 /home/jessie/Documents/Ps1-Emulator/src/plugins/plugin_host.h:
 
@@ -462,8 +455,6 @@ libps1emu_core.a:
 
 /usr/include/c++/15/bits/charconv.h:
 
-/usr/include/x86_64-linux-gnu/sys/types.h:
-
 /usr/include/c++/15/exception:
 
 /usr/lib/gcc/x86_64-linux-gnu/15/libgcc.a:
@@ -472,21 +463,25 @@ libps1emu_core.a:
 
 /usr/include/c++/15/tuple:
 
+/usr/include/c++/15/bits/std_abs.h:
+
+/usr/include/c++/15/typeinfo:
+
+/usr/include/x86_64-linux-gnu/bits/types/sigset_t.h:
+
+/usr/include/asm-generic/types.h:
+
+/usr/include/asm-generic/bitsperlong.h:
+
+/usr/include/stdc-predef.h:
+
 /home/jessie/Documents/Ps1-Emulator/src/core/scheduler.h:
+
+/home/jessie/Documents/Ps1-Emulator/src/core/xa_adpcm.h:
 
 /usr/include/c++/15/bits/stl_iterator_base_types.h:
 
 /usr/include/x86_64-linux-gnu/sys/single_threaded.h:
-
-/usr/include/c++/15/bits/align.h:
-
-/usr/include/x86_64-linux-gnu/bits/stdlib-float.h:
-
-/usr/include/x86_64-linux-gnu/bits/uintn-identity.h:
-
-CMakeFiles/ps1emu.dir/src/main.cpp.o:
-
-/home/jessie/Documents/Ps1-Emulator/src/core/gpu_packets.h:
 
 /usr/include/c++/15/ext/aligned_buffer.h:
 
@@ -513,6 +508,16 @@ CMakeFiles/ps1emu.dir/src/main.cpp.o:
 /home/jessie/Documents/Ps1-Emulator/include/ps1emu/sandbox.h:
 
 /home/jessie/Documents/Ps1-Emulator/src/core/cdrom_image.h:
+
+CMakeFiles/ps1emu.dir/src/main.cpp.o:
+
+/home/jessie/Documents/Ps1-Emulator/src/core/gpu_packets.h:
+
+/usr/include/c++/15/bits/align.h:
+
+/usr/include/x86_64-linux-gnu/bits/stdlib-float.h:
+
+/usr/include/x86_64-linux-gnu/bits/uintn-identity.h:
 
 /usr/include/c++/15/bits/memory_resource.h:
 
@@ -544,10 +549,6 @@ CMakeFiles/ps1emu.dir/src/main.cpp.o:
 
 /usr/include/x86_64-linux-gnu/bits/waitflags.h:
 
-/usr/include/c++/15/bits/exception_ptr.h:
-
-/usr/include/c++/15/ext/concurrence.h:
-
 /usr/include/c++/15/bits/stl_deque.h:
 
 /usr/include/x86_64-linux-gnu/bits/types/__FILE.h:
@@ -556,7 +557,17 @@ CMakeFiles/ps1emu.dir/src/main.cpp.o:
 
 /usr/include/x86_64-linux-gnu/asm/posix_types.h:
 
-/usr/include/stdc-predef.h:
+/usr/include/c++/15/bits/basic_string.h:
+
+/usr/include/c++/15/bits/cpp_type_traits.h:
+
+/usr/include/c++/15/streambuf:
+
+/usr/include/c++/15/bits/cxxabi_init_exception.h:
+
+/usr/include/c++/15/bits/ios_base.h:
+
+/usr/include/wchar.h:
 
 /usr/include/c++/15/bit:
 
@@ -569,14 +580,6 @@ CMakeFiles/ps1emu.dir/src/main.cpp.o:
 /usr/include/x86_64-linux-gnu/bits/types/cookie_io_functions_t.h:
 
 /usr/include/x86_64-linux-gnu/bits/wchar.h:
-
-/usr/include/c++/15/bits/cxxabi_init_exception.h:
-
-/usr/include/c++/15/bits/basic_string.h:
-
-/usr/include/c++/15/bits/cpp_type_traits.h:
-
-/usr/include/c++/15/streambuf:
 
 /home/jessie/Documents/Ps1-Emulator/src/core/mmio.h:
 
@@ -630,9 +633,9 @@ CMakeFiles/ps1emu.dir/src/main.cpp.o:
 
 /usr/include/x86_64-linux-gnu/c++/15/bits/c++config.h:
 
-/usr/include/c++/15/bits/ios_base.h:
+/usr/include/c++/15/bits/exception_ptr.h:
 
-/usr/include/wchar.h:
+/usr/include/c++/15/ext/concurrence.h:
 
 /usr/include/c++/15/ext/numeric_traits.h:
 

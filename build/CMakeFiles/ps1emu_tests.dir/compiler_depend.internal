@@ -16,6 +16,7 @@ CMakeFiles/ps1emu_tests.dir/tests/emulator_tests.cpp.o
  /home/jessie/Documents/Ps1-Emulator/src/core/memory_map.h
  /home/jessie/Documents/Ps1-Emulator/src/core/mmio.h
  /home/jessie/Documents/Ps1-Emulator/src/core/scheduler.h
+ /home/jessie/Documents/Ps1-Emulator/src/core/xa_adpcm.h
  /home/jessie/Documents/Ps1-Emulator/src/plugins/ipc.h
  /home/jessie/Documents/Ps1-Emulator/src/plugins/plugin_host.h
  /usr/include/alloca.h

@@ -27,6 +27,8 @@ file(REMOVE_RECURSE
   "CMakeFiles/ps1emu_core.dir/src/core/mmio.cpp.o.d"
   "CMakeFiles/ps1emu_core.dir/src/core/scheduler.cpp.o"
   "CMakeFiles/ps1emu_core.dir/src/core/scheduler.cpp.o.d"
+  "CMakeFiles/ps1emu_core.dir/src/core/xa_adpcm.cpp.o"
+  "CMakeFiles/ps1emu_core.dir/src/core/xa_adpcm.cpp.o.d"
   "CMakeFiles/ps1emu_core.dir/src/plugins/ipc.cpp.o"
   "CMakeFiles/ps1emu_core.dir/src/plugins/ipc.cpp.o.d"
   "CMakeFiles/ps1emu_core.dir/src/plugins/plugin_host.cpp.o"

@@ -9,6 +9,7 @@ set(CMAKE_DEPENDS_LANGUAGES
 # The set of dependency files which are needed:
 set(CMAKE_DEPENDS_DEPENDENCY_FILES
   "/home/jessie/Documents/Ps1-Emulator/plugins/spu_stub/main.cpp" "CMakeFiles/ps1emu_spu_stub.dir/plugins/spu_stub/main.cpp.o" "gcc" "CMakeFiles/ps1emu_spu_stub.dir/plugins/spu_stub/main.cpp.o.d"
+  "/home/jessie/Documents/Ps1-Emulator/src/plugins/ipc.cpp" "CMakeFiles/ps1emu_spu_stub.dir/src/plugins/ipc.cpp.o" "gcc" "CMakeFiles/ps1emu_spu_stub.dir/src/plugins/ipc.cpp.o.d"
   "" "ps1emu_spu_stub" "gcc" "CMakeFiles/ps1emu_spu_stub.dir/link.d"
   )
 

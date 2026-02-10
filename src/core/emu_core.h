@@ -8,10 +8,12 @@
 #include "core/memory_map.h"
 #include "core/mmio.h"
 #include "core/scheduler.h"
+#include "core/xa_adpcm.h"
 #include "plugins/plugin_host.h"
 
 #include <cstdint>
 #include <deque>
+#include <unordered_map>
 #include <vector>
 
 namespace ps1emu {
@@ -31,6 +33,7 @@ private:
   friend struct EmulatorCoreTestAccess;
   void flush_gpu_commands();
   void flush_gpu_control();
+  void flush_xa_audio();
   void process_dma();
   void flush_gpu_dma_pending();
   bool send_gpu_packet(const GpuPacket &packet);
@@ -48,6 +51,7 @@ private:
   CpuCore cpu_;
   std::vector<uint32_t> gpu_dma_remainder_;
   std::deque<GpuPacket> gpu_dma_pending_packets_;
+  std::unordered_map<uint16_t, XaDecodeState> xa_decode_states_;
 };
 
 } // namespace ps1emu

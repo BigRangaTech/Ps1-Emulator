@@ -137,6 +137,41 @@ static bool select_bin_layout(uint64_t file_size, uint32_t &sector_size, uint32_
   return false;
 }
 
+static uint32_t probe_bin_data_offset(std::ifstream &file, uint32_t sector_size) {
+  if (!file.is_open() || sector_size != 2352) {
+    return 24;
+  }
+  std::vector<uint8_t> raw(2352);
+  file.seekg(0, std::ios::beg);
+  file.read(reinterpret_cast<char *>(raw.data()), static_cast<std::streamsize>(raw.size()));
+  if (file.gcount() != static_cast<std::streamsize>(raw.size())) {
+    file.clear();
+    file.seekg(0, std::ios::beg);
+    return 24;
+  }
+  file.clear();
+  file.seekg(0, std::ios::beg);
+
+  bool sync_ok = raw[0] == 0x00 && raw[11] == 0x00;
+  for (int i = 1; i <= 10 && sync_ok; ++i) {
+    if (raw[static_cast<size_t>(i)] != 0xFF) {
+      sync_ok = false;
+    }
+  }
+  if (!sync_ok) {
+    return 24;
+  }
+
+  uint8_t mode = raw[0x0F];
+  if (mode == 1) {
+    return 16;
+  }
+  if (mode == 2) {
+    return 24;
+  }
+  return 24;
+}
+
 bool CdromImage::load_bin(const std::string &path, std::string &error) {
   track_ = {};
   if (!open_track_file(path, error)) {
@@ -147,6 +182,9 @@ bool CdromImage::load_bin(const std::string &path, std::string &error) {
   if (!select_bin_layout(file_size_, sector_size, data_offset)) {
     error = "Unrecognized BIN image size";
     return false;
+  }
+  if (sector_size == 2352) {
+    data_offset = probe_bin_data_offset(file_, sector_size);
   }
   track_.sector_size = sector_size;
   track_.data_offset = data_offset;
@@ -277,6 +315,31 @@ bool CdromImage::read_sector(uint32_t lba, std::vector<uint8_t> &out) {
   file_.seekg(static_cast<std::streamoff>(offset), std::ios::beg);
   file_.read(reinterpret_cast<char *>(out.data()), static_cast<std::streamsize>(track_.data_size));
   return file_.gcount() == static_cast<std::streamsize>(track_.data_size);
+}
+
+bool CdromImage::read_sector_raw(uint32_t lba, std::vector<uint8_t> &out) {
+  if (!loaded()) {
+    return false;
+  }
+
+  if (track_.sector_size == 0) {
+    return false;
+  }
+
+  int64_t sector_index = static_cast<int64_t>(lba) - static_cast<int64_t>(track_.start_lba);
+  if (sector_index < 0) {
+    return false;
+  }
+
+  uint64_t offset = static_cast<uint64_t>(sector_index) * track_.sector_size;
+  if (offset + track_.sector_size > file_size_) {
+    return false;
+  }
+
+  out.resize(track_.sector_size);
+  file_.seekg(static_cast<std::streamoff>(offset), std::ios::beg);
+  file_.read(reinterpret_cast<char *>(out.data()), static_cast<std::streamsize>(track_.sector_size));
+  return file_.gcount() == static_cast<std::streamsize>(track_.sector_size);
 }
 
 } // namespace ps1emu

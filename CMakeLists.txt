@@ -28,6 +28,7 @@ add_library(ps1emu_core
   src/core/memory_map.cpp
   src/core/mmio.cpp
   src/core/scheduler.cpp
+  src/core/xa_adpcm.cpp
   src/plugins/ipc.cpp
   src/plugins/plugin_host.cpp
 )
@@ -54,16 +55,24 @@ add_executable(ps1emu_spu_stub plugins/spu_stub/main.cpp)
 add_executable(ps1emu_input_stub plugins/input_stub/main.cpp)
 add_executable(ps1emu_cdrom_stub plugins/cdrom_stub/main.cpp)
 
+target_sources(ps1emu_spu_stub PRIVATE src/plugins/ipc.cpp)
+
 foreach(tgt ps1emu_gpu_stub ps1emu_spu_stub ps1emu_input_stub ps1emu_cdrom_stub)
   target_compile_options(${tgt} PRIVATE -Wall -Wextra -Wpedantic)
+  target_include_directories(${tgt} PRIVATE src include)
 endforeach()
 
 if(SDL2_FOUND)
   target_sources(ps1emu_gpu_stub PRIVATE src/ui/sdl_backend.cpp)
   target_compile_definitions(ps1emu_gpu_stub PRIVATE PS1EMU_GPU_SDL)
-  target_include_directories(ps1emu_gpu_stub PRIVATE ${SDL2_INCLUDE_DIRS} src)
+  target_include_directories(ps1emu_gpu_stub PRIVATE ${SDL2_INCLUDE_DIRS})
   target_link_libraries(ps1emu_gpu_stub PRIVATE ${SDL2_LIBRARIES})
   target_compile_options(ps1emu_gpu_stub PRIVATE ${SDL2_CFLAGS_OTHER})
+
+  target_compile_definitions(ps1emu_spu_stub PRIVATE PS1EMU_SPU_SDL)
+  target_include_directories(ps1emu_spu_stub PRIVATE ${SDL2_INCLUDE_DIRS})
+  target_link_libraries(ps1emu_spu_stub PRIVATE ${SDL2_LIBRARIES})
+  target_compile_options(ps1emu_spu_stub PRIVATE ${SDL2_CFLAGS_OTHER})
 else()
   message(WARNING "SDL2 not found; ps1emu_gpu_stub will run headless.")
 endif()

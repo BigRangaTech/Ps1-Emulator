@@ -17,6 +17,7 @@ CMakeFiles/ps1emu_ui.dir/src/ui/main.cpp.o
  /home/jessie/Documents/Ps1-Emulator/src/core/memory_map.h
  /home/jessie/Documents/Ps1-Emulator/src/core/mmio.h
  /home/jessie/Documents/Ps1-Emulator/src/core/scheduler.h
+ /home/jessie/Documents/Ps1-Emulator/src/core/xa_adpcm.h
  /home/jessie/Documents/Ps1-Emulator/src/plugins/ipc.h
  /home/jessie/Documents/Ps1-Emulator/src/plugins/plugin_host.h
  /home/jessie/Documents/Ps1-Emulator/src/ui/text_ui.h
@@ -279,6 +280,7 @@ CMakeFiles/ps1emu_ui.dir/src/ui/text_ui.cpp.o
  /home/jessie/Documents/Ps1-Emulator/src/core/memory_map.h
  /home/jessie/Documents/Ps1-Emulator/src/core/mmio.h
  /home/jessie/Documents/Ps1-Emulator/src/core/scheduler.h
+ /home/jessie/Documents/Ps1-Emulator/src/core/xa_adpcm.h
  /home/jessie/Documents/Ps1-Emulator/src/plugins/ipc.h
  /home/jessie/Documents/Ps1-Emulator/src/plugins/plugin_host.h
  /home/jessie/Documents/Ps1-Emulator/src/ui/text_ui.h

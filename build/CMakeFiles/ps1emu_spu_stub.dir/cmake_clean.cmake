@@ -2,6 +2,8 @@ file(REMOVE_RECURSE
   "CMakeFiles/ps1emu_spu_stub.dir/link.d"
   "CMakeFiles/ps1emu_spu_stub.dir/plugins/spu_stub/main.cpp.o"
   "CMakeFiles/ps1emu_spu_stub.dir/plugins/spu_stub/main.cpp.o.d"
+  "CMakeFiles/ps1emu_spu_stub.dir/src/plugins/ipc.cpp.o"
+  "CMakeFiles/ps1emu_spu_stub.dir/src/plugins/ipc.cpp.o.d"
   "ps1emu_spu_stub"
   "ps1emu_spu_stub.pdb"
 )

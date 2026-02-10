@@ -4,7 +4,7 @@
 # compile CXX with /usr/bin/c++
 CXX_DEFINES = 
 
-CXX_INCLUDES = 
+CXX_INCLUDES = -I/home/jessie/Documents/Ps1-Emulator/src -I/home/jessie/Documents/Ps1-Emulator/include
 
 CXX_FLAGS = -std=c++17 -Wall -Wextra -Wpedantic
 

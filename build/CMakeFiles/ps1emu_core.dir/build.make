@@ -268,10 +268,24 @@ CMakeFiles/ps1emu_core.dir/src/core/scheduler.cpp.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/ps1emu_core.dir/src/core/scheduler.cpp.s"
 	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/jessie/Documents/Ps1-Emulator/src/core/scheduler.cpp -o CMakeFiles/ps1emu_core.dir/src/core/scheduler.cpp.s
 
+CMakeFiles/ps1emu_core.dir/src/core/xa_adpcm.cpp.o: CMakeFiles/ps1emu_core.dir/flags.make
+CMakeFiles/ps1emu_core.dir/src/core/xa_adpcm.cpp.o: /home/jessie/Documents/Ps1-Emulator/src/core/xa_adpcm.cpp
+CMakeFiles/ps1emu_core.dir/src/core/xa_adpcm.cpp.o: CMakeFiles/ps1emu_core.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/jessie/Documents/Ps1-Emulator/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_15) "Building CXX object CMakeFiles/ps1emu_core.dir/src/core/xa_adpcm.cpp.o"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/ps1emu_core.dir/src/core/xa_adpcm.cpp.o -MF CMakeFiles/ps1emu_core.dir/src/core/xa_adpcm.cpp.o.d -o CMakeFiles/ps1emu_core.dir/src/core/xa_adpcm.cpp.o -c /home/jessie/Documents/Ps1-Emulator/src/core/xa_adpcm.cpp
+
+CMakeFiles/ps1emu_core.dir/src/core/xa_adpcm.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/ps1emu_core.dir/src/core/xa_adpcm.cpp.i"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /home/jessie/Documents/Ps1-Emulator/src/core/xa_adpcm.cpp > CMakeFiles/ps1emu_core.dir/src/core/xa_adpcm.cpp.i
+
+CMakeFiles/ps1emu_core.dir/src/core/xa_adpcm.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/ps1emu_core.dir/src/core/xa_adpcm.cpp.s"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/jessie/Documents/Ps1-Emulator/src/core/xa_adpcm.cpp -o CMakeFiles/ps1emu_core.dir/src/core/xa_adpcm.cpp.s
+
 CMakeFiles/ps1emu_core.dir/src/plugins/ipc.cpp.o: CMakeFiles/ps1emu_core.dir/flags.make
 CMakeFiles/ps1emu_core.dir/src/plugins/ipc.cpp.o: /home/jessie/Documents/Ps1-Emulator/src/plugins/ipc.cpp
 CMakeFiles/ps1emu_core.dir/src/plugins/ipc.cpp.o: CMakeFiles/ps1emu_core.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/jessie/Documents/Ps1-Emulator/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_15) "Building CXX object CMakeFiles/ps1emu_core.dir/src/plugins/ipc.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/jessie/Documents/Ps1-Emulator/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_16) "Building CXX object CMakeFiles/ps1emu_core.dir/src/plugins/ipc.cpp.o"
 	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/ps1emu_core.dir/src/plugins/ipc.cpp.o -MF CMakeFiles/ps1emu_core.dir/src/plugins/ipc.cpp.o.d -o CMakeFiles/ps1emu_core.dir/src/plugins/ipc.cpp.o -c /home/jessie/Documents/Ps1-Emulator/src/plugins/ipc.cpp
 
 CMakeFiles/ps1emu_core.dir/src/plugins/ipc.cpp.i: cmake_force
@@ -285,7 +299,7 @@ CMakeFiles/ps1emu_core.dir/src/plugins/ipc.cpp.s: cmake_force
 CMakeFiles/ps1emu_core.dir/src/plugins/plugin_host.cpp.o: CMakeFiles/ps1emu_core.dir/flags.make
 CMakeFiles/ps1emu_core.dir/src/plugins/plugin_host.cpp.o: /home/jessie/Documents/Ps1-Emulator/src/plugins/plugin_host.cpp
 CMakeFiles/ps1emu_core.dir/src/plugins/plugin_host.cpp.o: CMakeFiles/ps1emu_core.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/jessie/Documents/Ps1-Emulator/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_16) "Building CXX object CMakeFiles/ps1emu_core.dir/src/plugins/plugin_host.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/jessie/Documents/Ps1-Emulator/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_17) "Building CXX object CMakeFiles/ps1emu_core.dir/src/plugins/plugin_host.cpp.o"
 	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/ps1emu_core.dir/src/plugins/plugin_host.cpp.o -MF CMakeFiles/ps1emu_core.dir/src/plugins/plugin_host.cpp.o.d -o CMakeFiles/ps1emu_core.dir/src/plugins/plugin_host.cpp.o -c /home/jessie/Documents/Ps1-Emulator/src/plugins/plugin_host.cpp
 
 CMakeFiles/ps1emu_core.dir/src/plugins/plugin_host.cpp.i: cmake_force
@@ -312,6 +326,7 @@ ps1emu_core_OBJECTS = \
 "CMakeFiles/ps1emu_core.dir/src/core/memory_map.cpp.o" \
 "CMakeFiles/ps1emu_core.dir/src/core/mmio.cpp.o" \
 "CMakeFiles/ps1emu_core.dir/src/core/scheduler.cpp.o" \
+"CMakeFiles/ps1emu_core.dir/src/core/xa_adpcm.cpp.o" \
 "CMakeFiles/ps1emu_core.dir/src/plugins/ipc.cpp.o" \
 "CMakeFiles/ps1emu_core.dir/src/plugins/plugin_host.cpp.o"
 
@@ -332,11 +347,12 @@ libps1emu_core.a: CMakeFiles/ps1emu_core.dir/src/core/gpu_packets.cpp.o
 libps1emu_core.a: CMakeFiles/ps1emu_core.dir/src/core/memory_map.cpp.o
 libps1emu_core.a: CMakeFiles/ps1emu_core.dir/src/core/mmio.cpp.o
 libps1emu_core.a: CMakeFiles/ps1emu_core.dir/src/core/scheduler.cpp.o
+libps1emu_core.a: CMakeFiles/ps1emu_core.dir/src/core/xa_adpcm.cpp.o
 libps1emu_core.a: CMakeFiles/ps1emu_core.dir/src/plugins/ipc.cpp.o
 libps1emu_core.a: CMakeFiles/ps1emu_core.dir/src/plugins/plugin_host.cpp.o
 libps1emu_core.a: CMakeFiles/ps1emu_core.dir/build.make
 libps1emu_core.a: CMakeFiles/ps1emu_core.dir/link.txt
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --bold --progress-dir=/home/jessie/Documents/Ps1-Emulator/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_17) "Linking CXX static library libps1emu_core.a"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --bold --progress-dir=/home/jessie/Documents/Ps1-Emulator/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_18) "Linking CXX static library libps1emu_core.a"
 	$(CMAKE_COMMAND) -P CMakeFiles/ps1emu_core.dir/cmake_clean_target.cmake
 	$(CMAKE_COMMAND) -E cmake_link_script CMakeFiles/ps1emu_core.dir/link.txt --verbose=$(VERBOSE)
 

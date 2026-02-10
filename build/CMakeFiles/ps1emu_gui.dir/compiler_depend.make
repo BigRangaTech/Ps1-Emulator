@@ -16,6 +16,7 @@ CMakeFiles/ps1emu_gui.dir/src/ui/gui_app.cpp.o: /home/jessie/Documents/Ps1-Emula
   /home/jessie/Documents/Ps1-Emulator/src/core/memory_map.h \
   /home/jessie/Documents/Ps1-Emulator/src/core/mmio.h \
   /home/jessie/Documents/Ps1-Emulator/src/core/scheduler.h \
+  /home/jessie/Documents/Ps1-Emulator/src/core/xa_adpcm.h \
   /home/jessie/Documents/Ps1-Emulator/src/plugins/ipc.h \
   /home/jessie/Documents/Ps1-Emulator/src/plugins/plugin_host.h \
   /home/jessie/Documents/Ps1-Emulator/src/ui/gui_app.h \
@@ -503,6 +504,7 @@ CMakeFiles/ps1emu_gui.dir/src/ui/gui_main.cpp.o: /home/jessie/Documents/Ps1-Emul
   /home/jessie/Documents/Ps1-Emulator/src/core/memory_map.h \
   /home/jessie/Documents/Ps1-Emulator/src/core/mmio.h \
   /home/jessie/Documents/Ps1-Emulator/src/core/scheduler.h \
+  /home/jessie/Documents/Ps1-Emulator/src/core/xa_adpcm.h \
   /home/jessie/Documents/Ps1-Emulator/src/plugins/ipc.h \
   /home/jessie/Documents/Ps1-Emulator/src/plugins/plugin_host.h \
   /home/jessie/Documents/Ps1-Emulator/src/ui/gui_app.h \
@@ -1555,7 +1557,7 @@ CMakeFiles/ps1emu_gui.dir/src/ui/gui_main.cpp.o:
 
 /lib/x86_64-linux-gnu/libXcursor.so.1:
 
-/usr/include/linux/stddef.h:
+/lib/x86_64-linux-gnu/libXau.so.6:
 
 /usr/lib/gcc/x86_64-linux-gnu/15/include/avx2intrin.h:
 
@@ -1588,10 +1590,6 @@ CMakeFiles/ps1emu_gui.dir/src/ui/gui_main.cpp.o:
 /usr/include/SDL2/SDL_ttf.h:
 
 /usr/include/c++/15/tr1/bessel_function.tcc:
-
-/usr/lib/gcc/x86_64-linux-gnu/15/include/avx512vp2intersectvlintrin.h:
-
-/usr/include/c++/15/stdlib.h:
 
 /usr/include/c++/15/ctime:
 
@@ -1809,28 +1807,6 @@ CMakeFiles/ps1emu_gui.dir/src/ui/gui_main.cpp.o:
 
 /usr/include/SDL2/SDL_stdinc.h:
 
-/lib/i386-linux-gnu/libapparmor.so.1:
-
-/lib/x86_64-linux-gnu/libasound.so.2:
-
-/lib/i386-linux-gnu/libgbm.so.1:
-
-/usr/include/SDL2/SDL_shape.h:
-
-/usr/include/SDL2/SDL_quit.h:
-
-/usr/include/SDL2/SDL_rwops.h:
-
-/usr/include/c++/15/bits/shared_ptr_base.h:
-
-/usr/lib/i386-linux-gnu/libmp3lame.so.0:
-
-/usr/include/c++/15/bits/stl_uninitialized.h:
-
-/usr/include/SDL2/SDL_atomic.h:
-
-/usr/include/c++/15/bits/enable_special_members.h:
-
 /usr/lib/gcc/x86_64-linux-gnu/15/include/amxtf32intrin.h:
 
 /usr/include/SDL2/SDL_render.h:
@@ -1847,13 +1823,17 @@ CMakeFiles/ps1emu_gui.dir/src/ui/gui_main.cpp.o:
 
 /lib/i386-linux-gnu/libXrandr.so.2:
 
+/usr/include/c++/15/bits/enable_special_members.h:
+
+/usr/include/SDL2/SDL_atomic.h:
+
 /usr/include/SDL2/SDL_platform.h:
+
+/usr/include/c++/15/bits/allocator.h:
 
 /usr/lib/i386-linux-gnu/libmpg123.so.0:
 
 /usr/include/asm-generic/posix_types.h:
-
-/usr/include/c++/15/bits/allocator.h:
 
 /usr/include/SDL2/SDL_mutex.h:
 
@@ -1891,6 +1871,10 @@ CMakeFiles/ps1emu_gui.dir/src/ui/gui_main.cpp.o:
 
 /usr/include/x86_64-linux-gnu/c++/15/bits/ctype_base.h:
 
+/usr/include/x86_64-linux-gnu/c++/15/bits/gthr-default.h:
+
+/usr/include/SDL2/SDL_mouse.h:
+
 /usr/include/SDL2/SDL_audio.h:
 
 /usr/lib/i386-linux-gnu/libffi.so.8:
@@ -1904,10 +1888,6 @@ CMakeFiles/ps1emu_gui.dir/src/ui/gui_main.cpp.o:
 /usr/lib/gcc/x86_64-linux-gnu/15/libgcc.a:
 
 /usr/include/c++/15/bits/stl_deque.h:
-
-/usr/include/c++/15/bits/locale_classes.h:
-
-/usr/include/x86_64-linux-gnu/bits/types/__FILE.h:
 
 /usr/include/SDL2/SDL_loadso.h:
 
@@ -1928,6 +1908,10 @@ CMakeFiles/ps1emu_gui.dir/src/ui/gui_main.cpp.o:
 /home/jessie/Documents/Ps1-Emulator/src/core/memory_map.h:
 
 /home/jessie/Documents/Ps1-Emulator/src/core/gte.h:
+
+/usr/include/SDL2/SDL_quit.h:
+
+/usr/include/SDL2/SDL_shape.h:
 
 /usr/include/SDL2/SDL_haptic.h:
 
@@ -2003,6 +1987,8 @@ CMakeFiles/ps1emu_gui.dir/src/ui/gui_main.cpp.o:
 
 /usr/include/c++/15/bits/stl_iterator_base_types.h:
 
+/home/jessie/Documents/Ps1-Emulator/src/core/xa_adpcm.h:
+
 /home/jessie/Documents/Ps1-Emulator/src/core/scheduler.h:
 
 /usr/include/c++/15/bits/locale_facets_nonio.h:
@@ -2013,15 +1999,19 @@ CMakeFiles/ps1emu_gui.dir/src/ui/gui_main.cpp.o:
 
 /usr/include/SDL2/SDL_config.h:
 
+libps1emu_core.a:
+
+/usr/include/asm-generic/bitsperlong.h:
+
+/usr/include/asm-generic/types.h:
+
+/usr/include/x86_64-linux-gnu/bits/types/sigset_t.h:
+
 /usr/include/x86_64-linux-gnu/bits/time64.h:
 
 /usr/include/c++/15/ext/aligned_buffer.h:
 
 /home/jessie/Documents/Ps1-Emulator/src/plugins/plugin_host.h:
-
-/usr/include/x86_64-linux-gnu/c++/15/bits/gthr-default.h:
-
-/usr/include/SDL2/SDL_mouse.h:
 
 /home/jessie/Documents/Ps1-Emulator/src/core/cpu.h:
 
@@ -2043,6 +2033,20 @@ CMakeFiles/ps1emu_gui.dir/src/ui/gui_main.cpp.o:
 
 /usr/include/x86_64-linux-gnu/c++/15/bits/gthr.h:
 
+/usr/lib/i386-linux-gnu/libmp3lame.so.0:
+
+/usr/include/c++/15/bits/stl_uninitialized.h:
+
+/usr/include/c++/15/bits/shared_ptr_base.h:
+
+/usr/include/SDL2/SDL_rwops.h:
+
+/lib/i386-linux-gnu/libapparmor.so.1:
+
+/lib/x86_64-linux-gnu/libasound.so.2:
+
+/lib/i386-linux-gnu/libgbm.so.1:
+
 /usr/include/SDL2/SDL_log.h:
 
 /usr/include/c++/15/tr1/beta_function.tcc:
@@ -2063,6 +2067,16 @@ CMakeFiles/ps1emu_gui.dir/src/ui/gui_main.cpp.o:
 
 /usr/include/SDL2/SDL_system.h:
 
+/usr/include/x86_64-linux-gnu/bits/types/__FILE.h:
+
+/usr/include/c++/15/bits/locale_classes.h:
+
+/usr/include/linux/stddef.h:
+
+/usr/include/c++/15/stdlib.h:
+
+/usr/lib/gcc/x86_64-linux-gnu/15/include/avx512vp2intersectvlintrin.h:
+
 /usr/include/SDL2/SDL_rect.h:
 
 /usr/lib/gcc/x86_64-linux-gnu/15/include/clzerointrin.h:
@@ -2077,9 +2091,9 @@ CMakeFiles/ps1emu_gui.dir/src/ui/gui_main.cpp.o:
 
 /home/jessie/Documents/Ps1-Emulator/src/ui/gui_app.cpp:
 
-/home/jessie/Documents/Ps1-Emulator/src/core/app_paths.h:
-
 /usr/include/SDL2/SDL_error.h:
+
+/home/jessie/Documents/Ps1-Emulator/src/core/app_paths.h:
 
 /home/jessie/Documents/Ps1-Emulator/src/ui/sdl_backend.h:
 
@@ -2092,14 +2106,6 @@ CMakeFiles/ps1emu_gui.dir/src/ui/gui_main.cpp.o:
 /usr/include/c++/15/bits/fs_ops.h:
 
 /home/jessie/Documents/Ps1-Emulator/src/core/config.h:
-
-libps1emu_core.a:
-
-/usr/include/asm-generic/bitsperlong.h:
-
-/usr/include/asm-generic/types.h:
-
-/usr/include/x86_64-linux-gnu/bits/types/sigset_t.h:
 
 /usr/include/SDL2/SDL_version.h:
 
@@ -2738,5 +2744,3 @@ CMakeFiles/ps1emu_gui.dir/src/ui/gui_app.cpp.o:
 /lib/i386-linux-gnu/libz.so.1:
 
 /lib/x86_64-linux-gnu/libX11.so.6:
-
-/lib/x86_64-linux-gnu/libXau.so.6:

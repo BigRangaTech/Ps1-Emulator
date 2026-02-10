@@ -90,6 +90,14 @@ bool PluginHost::recv_frame(PluginType type, uint16_t &out_type, std::vector<uin
   return it->second.channel.recv_frame(out_type, out_payload);
 }
 
+bool PluginHost::is_frame_mode(PluginType type) const {
+  auto it = plugins_.find(type);
+  if (it == plugins_.end()) {
+    return false;
+  }
+  return it->second.frame_mode;
+}
+
 void PluginHost::shutdown_all() {
   std::vector<int> pids;
   pids.reserve(plugins_.size());

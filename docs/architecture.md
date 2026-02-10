@@ -66,3 +66,9 @@
 - Data FIFO fills on read timer expiry and raises IRQ `0x02` for data-ready.
 - CD-ROM DMA (channel 3) only completes when data FIFO has data available.
 - Data reads return 2048-byte user data from ISO/BIN/CUE images with cue index offset handling.
+- Setmode bit `0x20` enables whole-sector reads (2340 bytes, sync bytes removed).
+- Mode2/Form2 sectors return 2324 bytes when in data-only mode.
+- XA filter/adpcm flags are parsed; audio sectors are queued for SPU handoff when enabled.
+- GetlocL/GetlocP return additional metadata (mode/file/channel/submode/coding/track/index).
+- XA ADPCM sectors are decoded into 16-bit PCM in the core, resampled to the nominal rate, and forwarded to the SPU plugin.
+- Seek/ReadTOC/GetID simulate delayed completion with a queued IRQ, while ReadN/ReadS report an acknowledge IRQ before data-ready.

@@ -5,6 +5,7 @@
 
 #include <array>
 #include <cstdint>
+#include <deque>
 #include <string>
 #include <vector>
 
@@ -12,6 +13,16 @@ namespace ps1emu {
 
 class MmioBus {
 public:
+  struct XaAudioSector {
+    std::vector<uint8_t> data;
+    uint32_t lba = 0;
+    uint8_t mode = 0;
+    uint8_t file = 0;
+    uint8_t channel = 0;
+    uint8_t submode = 0;
+    uint8_t coding = 0;
+  };
+
   void reset();
 
   uint8_t read8(uint32_t addr);
@@ -44,18 +55,39 @@ public:
   void set_dma_madr(uint32_t channel, uint32_t value);
   bool load_cdrom_image(const std::string &path, std::string &error);
   size_t read_cdrom_data(uint8_t *dst, size_t len);
+  bool pop_xa_audio(XaAudioSector &out);
 
 private:
+  enum class CdromFillResult {
+    Error,
+    Skipped,
+    Delivered,
+  };
+
   static constexpr uint32_t kBase = 0x1F801000;
   static constexpr uint32_t kSize = 0x2000;
 
   uint32_t offset(uint32_t addr) const;
   void reset_gpu_state();
   uint32_t compute_gpustat() const;
+  struct CdromPendingResponse {
+    uint32_t delay_cycles = 0;
+    uint8_t irq_flags = 0;
+    std::vector<uint8_t> response;
+    bool clear_seeking = false;
+  };
+
+  uint8_t cdrom_status() const;
   void cdrom_push_response(uint8_t value);
+  void cdrom_push_response_block(const std::vector<uint8_t> &values);
+  void cdrom_queue_response(uint32_t delay_cycles,
+                            uint8_t irq_flags,
+                            std::vector<uint8_t> response,
+                            bool clear_seeking = false);
   void cdrom_raise_irq(uint8_t flags);
   void cdrom_execute_command(uint8_t cmd);
   void cdrom_maybe_fill_data();
+  CdromFillResult cdrom_fill_data_fifo();
 
   std::array<uint8_t, kSize> raw_ {};
 
@@ -119,6 +151,7 @@ private:
   std::vector<uint8_t> cdrom_param_fifo_;
   std::vector<uint8_t> cdrom_response_fifo_;
   std::vector<uint8_t> cdrom_data_fifo_;
+  std::deque<XaAudioSector> cdrom_xa_audio_queue_;
   uint8_t cdrom_index_ = 0;
   uint8_t cdrom_status_ = 0;
   uint8_t cdrom_irq_flags_ = 0;
@@ -131,10 +164,17 @@ private:
   bool cdrom_reading_ = false;
   bool cdrom_playing_ = false;
   bool cdrom_muted_ = false;
+  bool cdrom_seeking_ = false;
   uint32_t cdrom_read_timer_ = 0;
   uint32_t cdrom_read_period_ = 0;
   uint32_t cdrom_last_read_lba_ = 0;
   uint32_t cdrom_lba_ = 0;
+  uint8_t cdrom_last_mode_ = 0;
+  uint8_t cdrom_last_file_ = 0;
+  uint8_t cdrom_last_channel_ = 0;
+  uint8_t cdrom_last_submode_ = 0;
+  uint8_t cdrom_last_coding_ = 0;
+  std::deque<CdromPendingResponse> cdrom_pending_;
 
   bool timer_irq_enable_[3] = {};
   bool timer_irq_repeat_[3] = {};

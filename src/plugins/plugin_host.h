@@ -30,6 +30,7 @@ public:
   bool enter_frame_mode(PluginType type);
   bool send_frame(PluginType type, uint16_t message_type, const std::vector<uint8_t> &payload);
   bool recv_frame(PluginType type, uint16_t &out_type, std::vector<uint8_t> &out_payload);
+  bool is_frame_mode(PluginType type) const;
   void shutdown_all();
 
 private:

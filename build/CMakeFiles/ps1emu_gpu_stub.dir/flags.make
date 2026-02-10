@@ -4,7 +4,7 @@
 # compile CXX with /usr/bin/c++
 CXX_DEFINES = -DPS1EMU_GPU_SDL
 
-CXX_INCLUDES = -I/usr/include/SDL2 -I/home/jessie/Documents/Ps1-Emulator/src
+CXX_INCLUDES = -I/home/jessie/Documents/Ps1-Emulator/src -I/home/jessie/Documents/Ps1-Emulator/include -I/usr/include/SDL2
 
 CXX_FLAGS = -std=c++17 -Wall -Wextra -Wpedantic -D_REENTRANT
 

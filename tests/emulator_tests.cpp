@@ -5,6 +5,7 @@
 #include "core/memory_map.h"
 #include "core/mmio.h"
 #include "core/scheduler.h"
+#include "core/xa_adpcm.h"
 #include "plugins/ipc.h"
 
 #include <algorithm>
@@ -153,6 +154,46 @@ static void lba_to_bcd(uint32_t lba, uint8_t &mm, uint8_t &ss, uint8_t &ff) {
   mm = to_bcd(minutes);
   ss = to_bcd(seconds);
   ff = to_bcd(frames);
+}
+
+static std::vector<uint8_t> make_raw_sector(uint32_t lba,
+                                            uint8_t mode,
+                                            uint8_t submode,
+                                            uint8_t fill) {
+  std::vector<uint8_t> raw(2352, 0x00);
+  raw[0] = 0x00;
+  for (int i = 1; i <= 10; ++i) {
+    raw[static_cast<size_t>(i)] = 0xFF;
+  }
+  raw[11] = 0x00;
+
+  uint8_t mm = 0, ss = 0, ff = 0;
+  lba_to_bcd(lba, mm, ss, ff);
+  raw[0x0C] = mm;
+  raw[0x0D] = ss;
+  raw[0x0E] = ff;
+  raw[0x0F] = mode;
+
+  size_t data_offset = (mode == 2) ? 0x18u : 0x10u;
+  size_t data_size = 0x800u;
+  if (mode == 2) {
+    raw[0x10] = 0x11;
+    raw[0x11] = 0x22;
+    raw[0x12] = submode;
+    raw[0x13] = 0x00;
+    raw[0x14] = raw[0x10];
+    raw[0x15] = raw[0x11];
+    raw[0x16] = raw[0x12];
+    raw[0x17] = raw[0x13];
+    if (submode & 0x20u) {
+      data_size = 0x914u;
+    }
+  }
+
+  for (size_t i = 0; i < data_size && data_offset + i < raw.size(); ++i) {
+    raw[data_offset + i] = fill;
+  }
+  return raw;
 }
 
 static bool run_stub_handshake(const std::string &path, const std::string &name) {
@@ -789,13 +830,11 @@ static bool test_cdrom_cue_read_mmio() {
   ScopedTempFile bin("/tmp/ps1emu_test.bin");
   ScopedTempFile cue("/tmp/ps1emu_test.cue");
 
-  std::vector<uint8_t> data(2352 * 2, 0);
-  for (size_t sector = 0; sector < 2; ++sector) {
-    size_t base = sector * 2352 + 24;
-    std::fill(data.begin() + static_cast<long>(base),
-              data.begin() + static_cast<long>(base + 2048),
-              static_cast<uint8_t>(0x30 + sector));
-  }
+  std::vector<uint8_t> data;
+  std::vector<uint8_t> sector0 = make_raw_sector(0, 2, 0x00, 0x30);
+  std::vector<uint8_t> sector1 = make_raw_sector(1, 2, 0x00, 0x31);
+  data.insert(data.end(), sector0.begin(), sector0.end());
+  data.insert(data.end(), sector1.begin(), sector1.end());
   CHECK(write_binary_file(bin.path, data));
 
   std::ofstream cue_file(cue.path);
@@ -840,11 +879,12 @@ static bool test_cdrom_param_filter_roundtrip() {
   (void)mmio.read8(0x1F801801);
 
   mmio.write8(0x1F801801, 0x0F); // Getparam
-  std::vector<uint8_t> resp = read_cdrom_response(mmio, 4);
-  CHECK(resp.size() == 4);
+  std::vector<uint8_t> resp = read_cdrom_response(mmio, 5);
+  CHECK(resp.size() == 5);
   CHECK(resp[1] == 0xA5);
-  CHECK(resp[2] == 0x12);
-  CHECK(resp[3] == 0x34);
+  CHECK(resp[2] == 0x00);
+  CHECK(resp[3] == 0x12);
+  CHECK(resp[4] == 0x34);
   return true;
 }
 
@@ -869,19 +909,25 @@ static bool test_cdrom_loc_and_tracks() {
   mmio.tick(kCdromReadPeriodCycles);
 
   mmio.write8(0x1F801801, 0x10); // GetlocL
-  std::vector<uint8_t> resp = read_cdrom_response(mmio, 4);
+  std::vector<uint8_t> resp = read_cdrom_response(mmio, 9);
   uint8_t mm = 0, ss = 0, ff = 0;
   lba_to_bcd(0, mm, ss, ff);
   CHECK(resp[1] == mm);
   CHECK(resp[2] == ss);
   CHECK(resp[3] == ff);
+  CHECK(resp[4] == 0x01);
 
   mmio.write8(0x1F801801, 0x11); // GetlocP
-  resp = read_cdrom_response(mmio, 4);
-  lba_to_bcd(1, mm, ss, ff);
-  CHECK(resp[1] == mm);
-  CHECK(resp[2] == ss);
-  CHECK(resp[3] == ff);
+  resp = read_cdrom_response(mmio, 9);
+  lba_to_bcd(0, mm, ss, ff);
+  CHECK(resp[1] == 0x01);
+  CHECK(resp[2] == 0x01);
+  CHECK(resp[3] == mm);
+  CHECK(resp[4] == ss);
+  CHECK(resp[5] == ff);
+  CHECK(resp[6] == mm);
+  CHECK(resp[7] == ss);
+  CHECK(resp[8] == ff);
 
   mmio.write8(0x1F801801, 0x13); // GetTN
   resp = read_cdrom_response(mmio, 3);
@@ -903,6 +949,163 @@ static bool test_cdrom_loc_and_tracks() {
   CHECK(resp[1] == mm);
   CHECK(resp[2] == ss);
   CHECK(resp[3] == ff);
+  return true;
+}
+
+static bool test_cdrom_whole_sector_mode1() {
+  ScopedTempFile bin("/tmp/ps1emu_raw_mode1.bin");
+  std::vector<uint8_t> raw = make_raw_sector(0, 1, 0, 0x5A);
+  CHECK(write_binary_file(bin.path, raw));
+
+  ps1emu::MmioBus mmio;
+  mmio.reset();
+  std::string error;
+  CHECK(mmio.load_cdrom_image(bin.path, error));
+
+  mmio.write8(0x1F801802, 0x20); // whole sector
+  mmio.write8(0x1F801801, 0x0E); // Setmode
+  (void)mmio.read8(0x1F801801);
+
+  mmio.write8(0x1F801802, 0x00);
+  mmio.write8(0x1F801802, 0x02);
+  mmio.write8(0x1F801802, 0x00);
+  mmio.write8(0x1F801801, 0x02); // Setloc
+  (void)mmio.read8(0x1F801801);
+
+  mmio.write8(0x1F801801, 0x06); // ReadN
+  (void)mmio.read8(0x1F801801);
+  mmio.tick(kCdromReadPeriodCycles);
+
+  uint8_t b0 = mmio.read8(0x1F801802);
+  uint8_t b1 = mmio.read8(0x1F801802);
+  uint8_t b2 = mmio.read8(0x1F801802);
+  uint8_t b3 = mmio.read8(0x1F801802);
+  CHECK(b0 == 0x00);
+  CHECK(b1 == 0x02);
+  CHECK(b2 == 0x00);
+  CHECK(b3 == 0x01);
+
+  uint8_t data0 = mmio.read8(0x1F801802);
+  CHECK(data0 == 0x5A);
+  return true;
+}
+
+static bool test_cdrom_mode2_form2_size() {
+  ScopedTempFile bin("/tmp/ps1emu_raw_form2.bin");
+  std::vector<uint8_t> raw = make_raw_sector(0, 2, 0x20, 0x6B);
+  CHECK(write_binary_file(bin.path, raw));
+
+  ps1emu::MmioBus mmio;
+  mmio.reset();
+  std::string error;
+  CHECK(mmio.load_cdrom_image(bin.path, error));
+
+  mmio.write8(0x1F801802, 0x00); // data-only
+  mmio.write8(0x1F801801, 0x0E); // Setmode
+  (void)mmio.read8(0x1F801801);
+
+  mmio.write8(0x1F801802, 0x00);
+  mmio.write8(0x1F801802, 0x02);
+  mmio.write8(0x1F801802, 0x00);
+  mmio.write8(0x1F801801, 0x02); // Setloc
+  (void)mmio.read8(0x1F801801);
+
+  mmio.write8(0x1F801801, 0x06); // ReadN
+  (void)mmio.read8(0x1F801801);
+  mmio.tick(kCdromReadPeriodCycles);
+
+  uint8_t first = mmio.read8(0x1F801802);
+  CHECK(first == 0x6B);
+
+  for (size_t i = 1; i < 0x914u; ++i) {
+    (void)mmio.read8(0x1F801802);
+  }
+
+  uint8_t extra = mmio.read8(0x1F801802);
+  CHECK(extra == 0x00);
+  return true;
+}
+
+static bool test_cdrom_xa_audio_queue() {
+  ScopedTempFile bin("/tmp/ps1emu_xa_audio.bin");
+  std::vector<uint8_t> raw = make_raw_sector(0, 2, 0x64, 0x7E);
+  CHECK(write_binary_file(bin.path, raw));
+
+  ps1emu::MmioBus mmio;
+  mmio.reset();
+  std::string error;
+  CHECK(mmio.load_cdrom_image(bin.path, error));
+
+  mmio.write8(0x1F801802, 0x40); // ADPCM enable
+  mmio.write8(0x1F801801, 0x0E); // Setmode
+  (void)mmio.read8(0x1F801801);
+
+  mmio.write8(0x1F801802, 0x00);
+  mmio.write8(0x1F801802, 0x02);
+  mmio.write8(0x1F801802, 0x00);
+  mmio.write8(0x1F801801, 0x02); // Setloc
+  (void)mmio.read8(0x1F801801);
+
+  mmio.write8(0x1F801801, 0x06); // ReadN
+  (void)mmio.read8(0x1F801801);
+  mmio.tick(kCdromReadPeriodCycles);
+
+  ps1emu::MmioBus::XaAudioSector sector;
+  CHECK(mmio.pop_xa_audio(sector));
+  CHECK(sector.data.size() == 0x914u);
+  CHECK(sector.data[0] == 0x7E);
+  CHECK(sector.lba == 0u);
+
+  uint8_t b0 = mmio.read8(0x1F801802);
+  CHECK(b0 == 0x00);
+  return true;
+}
+
+static bool test_xa_adpcm_zero_decode() {
+  std::vector<uint8_t> data(0x900, 0x00);
+  for (size_t g = 0; g < 0x12; ++g) {
+    size_t base = g * 128;
+    data[base + 4] = 0x00;
+    data[base + 5] = 0x00;
+    data[base + 6] = 0x00;
+    data[base + 7] = 0x00;
+  }
+
+  ps1emu::XaDecodeState state;
+  ps1emu::XaDecodeInfo info;
+  std::vector<int16_t> left;
+  std::vector<int16_t> right;
+  CHECK(ps1emu::decode_xa_adpcm(data.data(), data.size(), 0x00, state, info, left, right));
+  CHECK(info.channels == 1);
+  CHECK(info.sample_rate == 37800);
+  CHECK(left.size() == 0x12u * 4u * 2u * 28u);
+  for (size_t i = 0; i < left.size(); ++i) {
+    CHECK(left[i] == 0);
+  }
+  return true;
+}
+
+static bool test_xa_adpcm_8bit_zero_decode() {
+  std::vector<uint8_t> data(0x900, 0x00);
+  for (size_t g = 0; g < 0x12; ++g) {
+    size_t base = g * 128;
+    data[base + 4] = 0x00;
+    data[base + 5] = 0x00;
+    data[base + 6] = 0x00;
+    data[base + 7] = 0x00;
+  }
+
+  ps1emu::XaDecodeState state;
+  ps1emu::XaDecodeInfo info;
+  std::vector<int16_t> left;
+  std::vector<int16_t> right;
+  CHECK(ps1emu::decode_xa_adpcm(data.data(), data.size(), 0x10, state, info, left, right));
+  CHECK(info.channels == 1);
+  CHECK(info.sample_rate == 37800);
+  CHECK(left.size() == 0x12u * 4u * 28u);
+  for (size_t i = 0; i < left.size(); ++i) {
+    CHECK(left[i] == 0);
+  }
   return true;
 }
 
@@ -1140,6 +1343,11 @@ int main() {
       {"cdrom_cue_read_mmio", test_cdrom_cue_read_mmio},
       {"cdrom_param_filter_roundtrip", test_cdrom_param_filter_roundtrip},
       {"cdrom_loc_and_tracks", test_cdrom_loc_and_tracks},
+      {"cdrom_whole_sector_mode1", test_cdrom_whole_sector_mode1},
+      {"cdrom_mode2_form2_size", test_cdrom_mode2_form2_size},
+      {"cdrom_xa_audio_queue", test_cdrom_xa_audio_queue},
+      {"xa_adpcm_zero_decode", test_xa_adpcm_zero_decode},
+      {"xa_adpcm_8bit_zero_decode", test_xa_adpcm_8bit_zero_decode},
       {"stub_plugins_handshake", test_stub_plugins_handshake},
       {"gpu_pipeline_dma_integration", test_gpu_pipeline_dma_integration},
       {"gpu_dma_read_to_ram", test_gpu_dma_read_to_ram},

@@ -46,6 +46,9 @@ cmake --build build -j
 - GPU: validate DMA backpressure draining behavior against real timing.
 - Tests: add coverage for each module as new features land (CPU/GPU/CD-ROM/SPU/Input).
 - CD-ROM: finalize command semantics (GetID/ReadTOC/Seek timing), raw sector modes, XA audio stub, and IRQ/DRQ gating.
+- CD-ROM: validate XA filter behavior and subheader parsing against known test discs; add real ADPCM decode.
+- CD-ROM: validate XA 8-bit ADPCM behavior and channel interleave accuracy against real discs.
+- SPU: wire PCM mixer into a real audio backend (SDL2) and implement volume/mix controls.
 - SPU: mixing + ADPCM decode, timing and IRQs.
 - Input: controller polling with mapping layer, hotplug.
 - Boot: BIOS logo + shell boot, load first game scene.

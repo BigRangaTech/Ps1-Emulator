@@ -710,6 +710,30 @@ src/core/scheduler.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/ps1emu_core.dir/build.make CMakeFiles/ps1emu_core.dir/src/core/scheduler.cpp.s
 .PHONY : src/core/scheduler.cpp.s
 
+src/core/xa_adpcm.o: src/core/xa_adpcm.cpp.o
+.PHONY : src/core/xa_adpcm.o
+
+# target to build an object file
+src/core/xa_adpcm.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/ps1emu_core.dir/build.make CMakeFiles/ps1emu_core.dir/src/core/xa_adpcm.cpp.o
+.PHONY : src/core/xa_adpcm.cpp.o
+
+src/core/xa_adpcm.i: src/core/xa_adpcm.cpp.i
+.PHONY : src/core/xa_adpcm.i
+
+# target to preprocess a source file
+src/core/xa_adpcm.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/ps1emu_core.dir/build.make CMakeFiles/ps1emu_core.dir/src/core/xa_adpcm.cpp.i
+.PHONY : src/core/xa_adpcm.cpp.i
+
+src/core/xa_adpcm.s: src/core/xa_adpcm.cpp.s
+.PHONY : src/core/xa_adpcm.s
+
+# target to generate assembly for a file
+src/core/xa_adpcm.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/ps1emu_core.dir/build.make CMakeFiles/ps1emu_core.dir/src/core/xa_adpcm.cpp.s
+.PHONY : src/core/xa_adpcm.cpp.s
+
 src/main.o: src/main.cpp.o
 .PHONY : src/main.o
 
@@ -740,6 +764,7 @@ src/plugins/ipc.o: src/plugins/ipc.cpp.o
 # target to build an object file
 src/plugins/ipc.cpp.o:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/ps1emu_core.dir/build.make CMakeFiles/ps1emu_core.dir/src/plugins/ipc.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/ps1emu_spu_stub.dir/build.make CMakeFiles/ps1emu_spu_stub.dir/src/plugins/ipc.cpp.o
 .PHONY : src/plugins/ipc.cpp.o
 
 src/plugins/ipc.i: src/plugins/ipc.cpp.i
@@ -748,6 +773,7 @@ src/plugins/ipc.i: src/plugins/ipc.cpp.i
 # target to preprocess a source file
 src/plugins/ipc.cpp.i:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/ps1emu_core.dir/build.make CMakeFiles/ps1emu_core.dir/src/plugins/ipc.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/ps1emu_spu_stub.dir/build.make CMakeFiles/ps1emu_spu_stub.dir/src/plugins/ipc.cpp.i
 .PHONY : src/plugins/ipc.cpp.i
 
 src/plugins/ipc.s: src/plugins/ipc.cpp.s
@@ -756,6 +782,7 @@ src/plugins/ipc.s: src/plugins/ipc.cpp.s
 # target to generate assembly for a file
 src/plugins/ipc.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/ps1emu_core.dir/build.make CMakeFiles/ps1emu_core.dir/src/plugins/ipc.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/ps1emu_spu_stub.dir/build.make CMakeFiles/ps1emu_spu_stub.dir/src/plugins/ipc.cpp.s
 .PHONY : src/plugins/ipc.cpp.s
 
 src/plugins/plugin_host.o: src/plugins/plugin_host.cpp.o
@@ -1004,6 +1031,9 @@ help:
 	@echo "... src/core/scheduler.o"
 	@echo "... src/core/scheduler.i"
 	@echo "... src/core/scheduler.s"
+	@echo "... src/core/xa_adpcm.o"
+	@echo "... src/core/xa_adpcm.i"
+	@echo "... src/core/xa_adpcm.s"
 	@echo "... src/main.o"
 	@echo "... src/main.i"
 	@echo "... src/main.s"
