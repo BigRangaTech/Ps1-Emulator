@@ -790,6 +790,33 @@ static bool test_gpu_pipeline_dma_integration() {
   return true;
 }
 
+static bool test_gpu_dma_read_to_ram() {
+  ScopedConfigFile config("ps1emu_tests_gpu_dma_read.conf");
+  CHECK(write_test_config(config.path));
+
+  ScopedCore scoped;
+  CHECK(scoped.core.initialize(config.path));
+  scoped.active = true;
+
+  auto &mmio = ps1emu::EmulatorCoreTestAccess::mmio(scoped.core);
+  auto &memory = ps1emu::EmulatorCoreTestAccess::memory(scoped.core);
+
+  mmio.queue_gpu_read_data({0x11223344u, 0x55667788u});
+  mmio.write32(0x1F801814, 0x04000002u); // DMA direction GPU->CPU
+
+  uint32_t base = 0x00018000;
+  mmio.write32(0x1F8010F4, (1u << 23) | (1u << (16 + 2)));
+  mmio.write32(0x1F801080 + 0x10 * 2 + 0x0, base);
+  mmio.write32(0x1F801080 + 0x10 * 2 + 0x4, (1u << 16) | 2u);
+  mmio.write32(0x1F801080 + 0x10 * 2 + 0x8, (1u << 24));
+
+  ps1emu::EmulatorCoreTestAccess::process_dma(scoped.core);
+
+  CHECK(memory.read32(base + 0) == 0x11223344u);
+  CHECK(memory.read32(base + 4) == 0x55667788u);
+  return true;
+}
+
 static bool test_dma_decrement_and_blocks() {
   ScopedConfigFile config("ps1emu_tests_dma.conf");
   CHECK(write_test_config(config.path));
@@ -918,6 +945,7 @@ int main() {
       {"cdrom_cue_read_mmio", test_cdrom_cue_read_mmio},
       {"stub_plugins_handshake", test_stub_plugins_handshake},
       {"gpu_pipeline_dma_integration", test_gpu_pipeline_dma_integration},
+      {"gpu_dma_read_to_ram", test_gpu_dma_read_to_ram},
       {"dma_decrement_and_blocks", test_dma_decrement_and_blocks},
       {"dma_bcr_zero", test_dma_bcr_zero},
       {"cdrom_dma_transfer", test_cdrom_dma_transfer},

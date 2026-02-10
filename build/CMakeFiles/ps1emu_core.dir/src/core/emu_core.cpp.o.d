@@ -210,4 +210,9 @@ CMakeFiles/ps1emu_core.dir/src/core/emu_core.cpp.o: \
  /home/jessie/Documents/Ps1-Emulator/src/core/gpu_packets.h \
  /home/jessie/Documents/Ps1-Emulator/src/plugins/plugin_host.h \
  /home/jessie/Documents/Ps1-Emulator/src/plugins/ipc.h \
+ /usr/include/c++/15/algorithm /usr/include/c++/15/bits/stl_algo.h \
+ /usr/include/c++/15/bits/algorithmfwd.h \
+ /usr/include/c++/15/bits/stl_heap.h \
+ /usr/include/c++/15/bits/uniform_int_dist.h \
+ /usr/include/c++/15/pstl/glue_algorithm_defs.h \
  /usr/include/c++/15/iostream

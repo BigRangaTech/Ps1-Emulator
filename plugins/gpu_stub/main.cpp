@@ -289,6 +289,7 @@ public:
         tex_depth_ = 0;
         blend_mode_ = 0;
         dithering_enabled_ = false;
+        draw_to_display_ = false;
         mask_set_ = false;
         mask_eval_ = false;
         rect_flip_x_ = false;
@@ -297,6 +298,8 @@ public:
         tex_window_mask_y_ = 0;
         tex_window_offset_x_ = 0;
         tex_window_offset_y_ = 0;
+        display_flip_x_ = false;
+        display_depth24_ = false;
         set_display_mode(0x00000000);
         break;
       }
@@ -371,9 +374,24 @@ public:
         src_y = kVramHeight - 1;
       }
       for (int x = 0; x < display_width_; ++x) {
-        int src_x = display_x_ + (display_flip_x_ ? (display_width_ - 1 - x) : x);
-        uint16_t color = vram_[static_cast<size_t>(src_y) * kVramWidth + src_x];
-        frame_[static_cast<size_t>(y) * display_width_ + x] = color15_to_32(color);
+        int pixel_index = display_flip_x_ ? (display_width_ - 1 - x) : x;
+        if (display_depth24_) {
+          int byte_x = display_x_ * 2 + pixel_index * 3;
+          if (byte_x + 2 >= kVramWidth * 2) {
+            frame_[static_cast<size_t>(y) * display_width_ + x] = 0xFF000000u;
+            continue;
+          }
+          uint8_t r = vram_byte(byte_x, src_y);
+          uint8_t g = vram_byte(byte_x + 1, src_y);
+          uint8_t b = vram_byte(byte_x + 2, src_y);
+          frame_[static_cast<size_t>(y) * display_width_ + x] =
+              0xFF000000u | (static_cast<uint32_t>(r) << 16) |
+              (static_cast<uint32_t>(g) << 8) | static_cast<uint32_t>(b);
+        } else {
+          int src_x = display_x_ + pixel_index;
+          uint16_t color = vram_[static_cast<size_t>(src_y) * kVramWidth + src_x];
+          frame_[static_cast<size_t>(y) * display_width_ + x] = color15_to_32(color);
+        }
       }
     }
 
@@ -408,6 +426,7 @@ private:
       tex_depth_ = static_cast<int>((mode >> 7) & 0x3u);
       blend_mode_ = static_cast<int>((mode >> 5) & 0x3u);
       dithering_enabled_ = (mode & (1u << 9)) != 0;
+      draw_to_display_ = (mode & (1u << 10)) != 0;
       rect_flip_x_ = (mode & (1u << 12)) != 0;
       rect_flip_y_ = (mode & (1u << 13)) != 0;
     } else if (cmd == 0xE3) { // draw area top-left
@@ -443,6 +462,7 @@ private:
     bool hres2 = (word & (1u << 6)) != 0;
     interlaced_ = (word & (1u << 5)) != 0;
     display_flip_x_ = (word & (1u << 7)) != 0;
+    display_depth24_ = (word & (1u << 4)) != 0;
     int width = 320;
     if (hres2) {
       width = 368;
@@ -1104,6 +1124,18 @@ private:
     return x >= 0 && x < kVramWidth && y >= 0 && y < kVramHeight;
   }
 
+  uint8_t vram_byte(int byte_x, int y) const {
+    if (byte_x < 0 || byte_x >= kVramWidth * 2 || y < 0 || y >= kVramHeight) {
+      return 0;
+    }
+    int word_x = byte_x >> 1;
+    uint16_t word = vram_[static_cast<size_t>(y) * kVramWidth + word_x];
+    if (byte_x & 1) {
+      return static_cast<uint8_t>(word >> 8);
+    }
+    return static_cast<uint8_t>(word & 0xFFu);
+  }
+
   static uint16_t blend_colors(uint16_t dst, uint16_t src, int mode) {
     int dr = dst & 0x1F;
     int dg = (dst >> 5) & 0x1F;
@@ -1180,6 +1212,13 @@ private:
     if (!in_vram(x, y)) {
       return;
     }
+    if (!draw_to_display_) {
+      int dx1 = display_x_ + display_width_ - 1;
+      int dy1 = display_y_ + display_height_ - 1;
+      if (x >= display_x_ && x <= dx1 && y >= display_y_ && y <= dy1) {
+        return;
+      }
+    }
     size_t idx = static_cast<size_t>(y) * kVramWidth + x;
     if (mask_eval_ && (vram_[idx] & 0x8000u)) {
       return;
@@ -1201,6 +1240,7 @@ private:
   bool running_ = true;
   bool display_enabled_ = true;
   bool display_flip_x_ = false;
+  bool display_depth24_ = false;
   bool interlaced_ = false;
   bool field_parity_ = false;
   int h_range_start_ = 0;
@@ -1229,6 +1269,7 @@ private:
   bool mask_set_ = false;
   bool mask_eval_ = false;
   bool dithering_enabled_ = false;
+  bool draw_to_display_ = false;
   bool rect_flip_x_ = false;
   bool rect_flip_y_ = false;
   int tex_window_mask_x_ = 0;

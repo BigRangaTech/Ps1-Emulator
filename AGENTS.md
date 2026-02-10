@@ -31,3 +31,13 @@ cmake --build build -j
 - An SDL2 GUI is available via `ps1emu_gui` when SDL2/SDL2_ttf are installed.
 - Flatpak manifest lives at `flatpak/org.ps1emu.PS1Emu.yml`.
 - Desktop entry: `assets/org.ps1emu.PS1Emu.desktop` (uses `ps1emu_gui_wrapper`).
+
+## TODO
+- GPU: verify GPUSTAT timing (ready/busy, DMA request) against real hardware.
+- GPU: tighten DMA pacing and GPUREAD/VRAM transfer timing.
+- GPU: verify 24-bit display mapping against real hardware behavior.
+- GPU: validate GPU->CPU DMA transfers with real BIOS/ROM paths.
+- CD-ROM: full command set, sector timing, XA audio stub, DMA pacing.
+- SPU: mixing + ADPCM decode, timing and IRQs.
+- Input: controller polling with mapping layer, hotplug.
+- Boot: BIOS logo + shell boot, load first game scene.

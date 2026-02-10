@@ -2,6 +2,7 @@
 
 #include "core/gpu_packets.h"
 
+#include <algorithm>
 #include <iostream>
 
 namespace ps1emu {
@@ -81,6 +82,9 @@ bool EmulatorCore::send_gpu_packet(const GpuPacket &packet) {
 }
 
 bool EmulatorCore::request_vram_read(uint16_t x, uint16_t y, uint16_t w, uint16_t h) {
+  uint64_t pixel_count = static_cast<uint64_t>(w) * static_cast<uint64_t>(h);
+  uint64_t word_count = (pixel_count + 1) / 2;
+
   std::vector<uint8_t> payload(8);
   payload[0] = static_cast<uint8_t>(x & 0xFF);
   payload[1] = static_cast<uint8_t>((x >> 8) & 0xFF);
@@ -123,7 +127,9 @@ bool EmulatorCore::request_vram_read(uint16_t x, uint16_t y, uint16_t w, uint16_
   if (!low) {
     words.push_back(current);
   }
-  mmio_.queue_gpu_read_data(std::move(words));
+  uint32_t delay = static_cast<uint32_t>(std::min<uint64_t>(word_count, 100000));
+  mmio_.schedule_gpu_read_data(std::move(words), delay);
+  mmio_.gpu_add_busy(delay);
   return true;
 }
 
@@ -214,6 +220,25 @@ void EmulatorCore::process_dma() {
       total_words = 1;
     }
     bool decrement = (chcr & (1u << 1)) != 0;
+
+    uint64_t dma_busy = static_cast<uint64_t>(total_words) * 2;
+    dma_busy += static_cast<uint64_t>(block_count ? block_count : 1) * 8;
+    mmio_.gpu_add_busy(static_cast<uint32_t>(std::min<uint64_t>(dma_busy, 100000)));
+
+    if (mmio_.gpu_dma_dir() == 2) { // GPU -> CPU (VRAM read DMA)
+      for (uint32_t i = 0; i < total_words; ++i) {
+        uint32_t addr = decrement ? (madr - i * 4) : (madr + i * 4);
+        uint32_t word = mmio_.gpu_read_word();
+        memory_.write32(addr, word);
+      }
+
+      if (decrement) {
+        mmio_.set_dma_madr(channel, madr - total_words * 4);
+      } else {
+        mmio_.set_dma_madr(channel, madr + total_words * 4);
+      }
+      return;
+    }
 
     std::vector<uint32_t> words;
     words.reserve(total_words + gpu_dma_remainder_.size());

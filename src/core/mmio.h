@@ -32,6 +32,10 @@ public:
   std::vector<uint32_t> take_gpu_control();
   void apply_gp0_state(uint32_t word);
   void queue_gpu_read_data(std::vector<uint32_t> words);
+  void schedule_gpu_read_data(std::vector<uint32_t> words, uint32_t delay_cycles);
+  void gpu_add_busy(uint32_t cycles);
+  uint32_t gpu_dma_dir() const;
+  uint32_t gpu_read_word();
   uint32_t consume_dma_channel();
   uint32_t dma_madr(uint32_t channel) const;
   uint32_t dma_bcr(uint32_t channel) const;
@@ -59,6 +63,8 @@ private:
   std::vector<uint32_t> gpu_gp1_fifo_;
   std::vector<uint32_t> gpu_read_fifo_;
   uint32_t gpu_read_latch_ = 0;
+  std::vector<uint32_t> gpu_read_pending_;
+  uint32_t gpu_read_pending_delay_ = 0;
   uint32_t gpu_texpage_x_ = 0;
   uint32_t gpu_texpage_y_ = 0;
   uint32_t gpu_semi_ = 0;
@@ -84,6 +90,8 @@ private:
   uint16_t gpu_h_range_end_ = 0;
   uint16_t gpu_v_range_start_ = 0;
   uint16_t gpu_v_range_end_ = 0;
+  uint64_t gpu_field_cycle_accum_ = 0;
+  uint32_t gpu_busy_cycles_ = 0;
   uint32_t gpu_tex_window_ = 0;
   uint32_t gpu_draw_area_tl_ = 0;
   uint32_t gpu_draw_area_br_ = 0;

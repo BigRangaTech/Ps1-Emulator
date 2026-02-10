@@ -1,5 +1,6 @@
 #include "core/mmio.h"
 
+#include <algorithm>
 #include <cstring>
 
 namespace ps1emu {
@@ -44,6 +45,8 @@ void MmioBus::reset_gpu_state() {
   gpu_gp0_fifo_.clear();
   gpu_read_fifo_.clear();
   gpu_read_latch_ = 0;
+  gpu_read_pending_.clear();
+  gpu_read_pending_delay_ = 0;
   gpu_texpage_x_ = 0;
   gpu_texpage_y_ = 0;
   gpu_semi_ = 0;
@@ -63,6 +66,8 @@ void MmioBus::reset_gpu_state() {
   gpu_display_depth24_ = false;
   gpu_dma_dir_ = 0;
   gpu_field_ = false;
+  gpu_field_cycle_accum_ = 0;
+  gpu_busy_cycles_ = 0;
   gpu_display_x_ = 0;
   gpu_display_y_ = 0;
   gpu_h_range_start_ = 0x200;
@@ -77,6 +82,7 @@ void MmioBus::reset_gpu_state() {
 }
 
 uint32_t MmioBus::compute_gpustat() const {
+  constexpr size_t kGpuFifoLimit = 32;
   uint32_t stat = 0;
   stat |= (gpu_texpage_x_ & 0xFu);
   stat |= (gpu_texpage_y_ & 0x1u) << 4;
@@ -126,9 +132,20 @@ uint32_t MmioBus::compute_gpustat() const {
     stat |= (1u << 24);
   }
 
-  bool ready_cmd = true;
+  bool ready_cmd = (gpu_gp0_fifo_.size() < kGpuFifoLimit) && (gpu_busy_cycles_ == 0);
   bool ready_vram_to_cpu = !gpu_read_fifo_.empty();
   bool ready_dma_block = true;
+  switch (gpu_dma_dir_ & 0x3u) {
+    case 1:
+      ready_dma_block = ready_cmd;
+      break;
+    case 2:
+      ready_dma_block = ready_vram_to_cpu;
+      break;
+    default:
+      ready_dma_block = true;
+      break;
+  }
 
   if (ready_cmd) {
     stat |= (1u << 26);
@@ -150,10 +167,8 @@ uint32_t MmioBus::compute_gpustat() const {
       dma_req = 0;
       break;
     case 1:
-      dma_req = ready_cmd ? 1u : 0u;
-      break;
     case 2:
-      dma_req = ready_vram_to_cpu ? 1u : 0u;
+      dma_req = ready_dma_block ? 1u : 0u;
       break;
     case 3:
       dma_req = 1;
@@ -574,9 +589,11 @@ void MmioBus::write32(uint32_t addr, uint32_t value) {
   if (addr == 0x1F801810) { // GPU GP0
     gpu_gp0_ = value;
     gpu_gp0_fifo_.push_back(value);
+    gpu_busy_cycles_ = std::min<uint32_t>(gpu_busy_cycles_ + 2, 100000);
   } else if (addr == 0x1F801814) { // GPU GP1
     gpu_gp1_ = value;
     gpu_gp1_fifo_.push_back(value);
+    gpu_busy_cycles_ = std::min<uint32_t>(gpu_busy_cycles_ + 1, 100000);
     uint8_t cmd = static_cast<uint8_t>(value >> 24);
     switch (cmd) {
       case 0x00: { // Reset GPU
@@ -744,6 +761,43 @@ uint16_t MmioBus::irq_mask() const {
 }
 
 void MmioBus::tick(uint32_t cycles) {
+  constexpr uint32_t kCpuCyclesPerFrameNtsc = 33868800 / 60;
+  constexpr uint32_t kCpuCyclesPerFramePal = 33868800 / 50;
+
+  if (gpu_busy_cycles_ > 0) {
+    if (gpu_busy_cycles_ > cycles) {
+      gpu_busy_cycles_ -= cycles;
+    } else {
+      gpu_busy_cycles_ = 0;
+    }
+  }
+
+  if (!gpu_read_pending_.empty()) {
+    if (gpu_read_pending_delay_ > cycles) {
+      gpu_read_pending_delay_ -= cycles;
+    } else {
+      gpu_read_pending_delay_ = 0;
+      queue_gpu_read_data(std::move(gpu_read_pending_));
+      gpu_read_pending_.clear();
+    }
+  }
+
+  gpu_field_cycle_accum_ += cycles;
+  uint32_t period = gpu_vmode_pal_ ? kCpuCyclesPerFramePal : kCpuCyclesPerFrameNtsc;
+  if (period == 0) {
+    period = kCpuCyclesPerFrameNtsc;
+  }
+  if (gpu_field_cycle_accum_ >= period) {
+    if (gpu_interlace_) {
+      while (gpu_field_cycle_accum_ >= period) {
+        gpu_field_cycle_accum_ -= period;
+        gpu_field_ = !gpu_field_;
+      }
+    } else {
+      gpu_field_cycle_accum_ %= period;
+    }
+  }
+
   for (int i = 0; i < 3; ++i) {
     uint32_t before = timer_count_[i];
     uint16_t mode = timer_mode_[i];
@@ -917,6 +971,41 @@ void MmioBus::queue_gpu_read_data(std::vector<uint32_t> words) {
   for (uint32_t word : words) {
     gpu_read_fifo_.push_back(word);
   }
+}
+
+void MmioBus::schedule_gpu_read_data(std::vector<uint32_t> words, uint32_t delay_cycles) {
+  if (words.empty()) {
+    return;
+  }
+  if (delay_cycles == 0 && gpu_read_pending_.empty()) {
+    queue_gpu_read_data(std::move(words));
+    return;
+  }
+  if (!gpu_read_pending_.empty()) {
+    gpu_read_pending_.insert(gpu_read_pending_.end(), words.begin(), words.end());
+  } else {
+    gpu_read_pending_ = std::move(words);
+    gpu_read_pending_delay_ = delay_cycles;
+  }
+}
+
+void MmioBus::gpu_add_busy(uint32_t cycles) {
+  if (cycles == 0) {
+    return;
+  }
+  gpu_busy_cycles_ = std::min<uint32_t>(gpu_busy_cycles_ + cycles, 100000);
+}
+
+uint32_t MmioBus::gpu_dma_dir() const {
+  return gpu_dma_dir_ & 0x3u;
+}
+
+uint32_t MmioBus::gpu_read_word() {
+  if (!gpu_read_fifo_.empty()) {
+    gpu_read_latch_ = gpu_read_fifo_.front();
+    gpu_read_fifo_.erase(gpu_read_fifo_.begin());
+  }
+  return gpu_read_latch_;
 }
 
 } // namespace ps1emu

@@ -45,4 +45,4 @@ If `bios.path` is empty, a minimal HLE BIOS stub is used.
 Use `--cycles N` to execute a fixed number of interpreter steps for now.
 
 ## Status
-Scaffold only: IPC, plugin launching, config, BIOS loader, memory map, and CPU skeleton are in place. GPU, SPU, CD-ROM emulation is not implemented yet.
+Scaffold plus early core: IPC, plugin launching, config, BIOS loader, memory map, CPU interpreter/dynarec skeleton, and a growing GTE. The GPU stub now handles GP0/GP1 packets, basic rendering (polygons/rects/lines), texture sampling, masking, dithering, semi-transparency, draw-to-display gating, GPUSTAT timing approximations, and display modes (including a best-effort 24-bit output path). SPU/CD-ROM/Input remain stub-level.

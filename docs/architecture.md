@@ -8,18 +8,18 @@
 
 ## Process Model
 - `ps1emu` is the host process.
-- Each plugin is a separate process (sandboxed). IPC is line-based for now.
-- Later: replace IPC transport with a framed binary protocol or Cap'n Proto.
+- Each plugin is a separate process (sandboxed).
+- IPC is line-based for control and switches to framed binary mode for GPU bulk data.
+- Later: replace IPC transport with a shared-memory ring or Cap'n Proto.
 
 ## Core Responsibilities
 - CPU: interpreter + dynarec
-- Memory map + MMIO
-- Scheduler + timing
-- DMA, timers, interrupts
+- Memory map + MMIO (includes GPUSTAT tracking and GP0/GP1 register latches)
+- Scheduler + timing (DMA, timers, approximate GPU field timing)
 - BIOS loading
 
 ## Plugin Responsibilities
-- GPU: command processor + renderer output
+- GPU: GP0/GP1 command processor, VRAM model, display output
 - SPU: audio synthesis
 - Input: controller polling
 - CD-ROM: disc image I/O and XA decoding
@@ -42,3 +42,14 @@
 ## BIOS
 - If a real BIOS is not configured, the emulator uses a small HLE BIOS stub.
 - Real BIOS is required for accuracy once CPU execution is implemented.
+
+## GPU Stub Notes
+- GP0 state (draw mode, texture window, draw areas, mask) is applied in-core.
+- GP1 state (display ranges, display mode, DMA direction) is tracked in MMIO for GPUSTAT.
+- The GPU stub renders into a 1024x512 16-bit VRAM and presents from the display area.
+- Draw-to-display gating is respected for draw commands that target the active display region.
+- 24-bit display output is a best-effort byte-level view of VRAM and will need refinement.
+- GPUSTAT ready/busy bits are approximated using FIFO occupancy and a simple busy-cycle counter.
+- Interlace field toggling is approximate (CPU-cycle based) and will need calibration later.
+- VRAM readback is scheduled with a small delay to model transfer latency.
+- DMA channel 2 supports GPU->CPU transfers by streaming GPUREAD words into RAM.

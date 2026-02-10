@@ -20,3 +20,4 @@
 - SDL2-based layout with sidebar navigation.
 - Library, Settings, and Session views.
 - Focus on clear typography and calm palette.
+- BIOS import/browse workflow for local and Flatpak-safe setups.

@@ -174,5 +174,12 @@ CMakeFiles/ps1emu_core.dir/src/core/mmio.cpp.o: \
  /usr/include/c++/15/bits/stl_vector.h \
  /usr/include/c++/15/bits/stl_bvector.h \
  /usr/include/c++/15/bits/vector.tcc /usr/include/c++/15/array \
- /usr/include/c++/15/compare /usr/include/c++/15/cstring \
+ /usr/include/c++/15/compare /usr/include/c++/15/algorithm \
+ /usr/include/c++/15/bits/stl_algo.h \
+ /usr/include/c++/15/bits/algorithmfwd.h \
+ /usr/include/c++/15/bits/stl_heap.h \
+ /usr/include/c++/15/bits/uniform_int_dist.h \
+ /usr/include/c++/15/bits/stl_tempbuf.h \
+ /usr/include/c++/15/pstl/glue_algorithm_defs.h \
+ /usr/include/c++/15/pstl/execution_defs.h /usr/include/c++/15/cstring \
  /usr/include/string.h /usr/include/strings.h
