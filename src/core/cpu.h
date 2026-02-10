@@ -53,13 +53,14 @@ private:
   void set_branch_target(uint32_t target);
   void raise_exception(uint32_t excode, uint32_t badaddr, bool in_delay, uint32_t instr_pc, uint32_t epc_pc);
   bool check_interrupts();
-  void enqueue_gte_write(uint32_t reg, uint32_t value, uint32_t delay);
-  void flush_gte_writes();
+  void enqueue_gte_write(uint32_t reg, uint32_t value, uint32_t delay, bool is_ctrl);
+  void flush_gte_writes(uint32_t cycles);
 
   struct PendingGteWrite {
     uint32_t reg = 0;
     uint32_t value = 0;
     uint32_t delay = 0;
+    bool is_ctrl = false;
   };
 
   MemoryMap *memory_ = nullptr;
@@ -75,6 +76,7 @@ private:
   uint32_t load_delay_shadow_reg_ = 0;
   uint32_t load_delay_shadow_value_ = 0;
   bool branch_pending_ = false;
+  bool skip_next_ = false;
 };
 
 } // namespace ps1emu

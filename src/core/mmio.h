@@ -78,6 +78,12 @@ private:
   bool gpu_display_depth24_ = false;
   uint32_t gpu_dma_dir_ = 0;
   bool gpu_field_ = false;
+  uint16_t gpu_display_x_ = 0;
+  uint16_t gpu_display_y_ = 0;
+  uint16_t gpu_h_range_start_ = 0;
+  uint16_t gpu_h_range_end_ = 0;
+  uint16_t gpu_v_range_start_ = 0;
+  uint16_t gpu_v_range_end_ = 0;
   uint32_t gpu_tex_window_ = 0;
   uint32_t gpu_draw_area_tl_ = 0;
   uint32_t gpu_draw_area_br_ = 0;

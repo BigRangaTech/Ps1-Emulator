@@ -22,6 +22,7 @@ void CpuCore::reset() {
   load_delay_shadow_reg_ = 0;
   load_delay_shadow_value_ = 0;
   branch_pending_ = false;
+  skip_next_ = false;
   dynarec_cache_.invalidate_all();
 }
 
@@ -70,10 +71,26 @@ uint32_t CpuCore::step_interpreter() {
 
   if (check_interrupts()) {
     load_delay_shadow_valid_ = false;
+    skip_next_ = false;
+    branch_pending_ = false;
     if (scheduler_) {
       scheduler_->advance(1);
     }
     state_.gpr[0] = 0;
+    return 1;
+  }
+
+  if (skip_next_) {
+    skip_next_ = false;
+    state_.pc = state_.next_pc;
+    state_.next_pc = state_.pc + 4;
+    branch_pending_ = false;
+    state_.gpr[0] = 0;
+    flush_gte_writes(1);
+    load_delay_shadow_valid_ = false;
+    if (scheduler_) {
+      scheduler_->advance(1);
+    }
     return 1;
   }
 
@@ -98,7 +115,7 @@ uint32_t CpuCore::step_interpreter() {
   }
   state_.gpr[0] = 0;
 
-  flush_gte_writes();
+  flush_gte_writes(cycles);
   load_delay_shadow_valid_ = false;
   if (scheduler_) {
     scheduler_->advance(cycles);
@@ -393,6 +410,36 @@ uint32_t CpuCore::execute_instruction(uint32_t instr,
           set_branch_target(target);
         }
         out_branch = true;
+      } else if (rt == 0x02) { // BLTZL
+        if (s < 0) {
+          set_branch_target(target);
+          out_branch = true;
+        } else {
+          skip_next_ = true;
+        }
+      } else if (rt == 0x03) { // BGEZL
+        if (s >= 0) {
+          set_branch_target(target);
+          out_branch = true;
+        } else {
+          skip_next_ = true;
+        }
+      } else if (rt == 0x12) { // BLTZALL
+        write_reg(31, instr_pc + 8);
+        if (s < 0) {
+          set_branch_target(target);
+          out_branch = true;
+        } else {
+          skip_next_ = true;
+        }
+      } else if (rt == 0x13) { // BGEZALL
+        write_reg(31, instr_pc + 8);
+        if (s >= 0) {
+          set_branch_target(target);
+          out_branch = true;
+        } else {
+          skip_next_ = true;
+        }
       } else {
         raise_exception(10, 0, in_delay, instr_pc, in_delay ? (instr_pc - 4) : instr_pc);
         out_exception = true;
@@ -440,6 +487,42 @@ uint32_t CpuCore::execute_instruction(uint32_t instr,
       out_branch = true;
       break;
     }
+    case 0x14: { // BEQL
+      if (read_reg(rs) == read_reg(rt)) {
+        set_branch_target(instr_pc + 4 + (static_cast<int32_t>(imm_se) << 2));
+        out_branch = true;
+      } else {
+        skip_next_ = true;
+      }
+      break;
+    }
+    case 0x15: { // BNEL
+      if (read_reg(rs) != read_reg(rt)) {
+        set_branch_target(instr_pc + 4 + (static_cast<int32_t>(imm_se) << 2));
+        out_branch = true;
+      } else {
+        skip_next_ = true;
+      }
+      break;
+    }
+    case 0x16: { // BLEZL
+      if (static_cast<int32_t>(read_reg(rs)) <= 0) {
+        set_branch_target(instr_pc + 4 + (static_cast<int32_t>(imm_se) << 2));
+        out_branch = true;
+      } else {
+        skip_next_ = true;
+      }
+      break;
+    }
+    case 0x17: { // BGTZL
+      if (static_cast<int32_t>(read_reg(rs)) > 0) {
+        set_branch_target(instr_pc + 4 + (static_cast<int32_t>(imm_se) << 2));
+        out_branch = true;
+      } else {
+        skip_next_ = true;
+      }
+      break;
+    }
     case 0x08: { // ADDI
       int32_t a = static_cast<int32_t>(read_reg(rs));
       int32_t b = static_cast<int32_t>(imm_se);
@@ -485,11 +568,11 @@ uint32_t CpuCore::execute_instruction(uint32_t instr,
       if (cop_op == 0x00) { // MFC2
         out_load = {true, rt, gte_.read_data(rd)};
       } else if (cop_op == 0x04) { // MTC2
-        gte_.write_data(rd, read_reg(rt));
+        enqueue_gte_write(rd, read_reg(rt), 1, false);
       } else if (cop_op == 0x02) { // CFC2
         out_load = {true, rt, gte_.read_ctrl(rd + 32)};
       } else if (cop_op == 0x06) { // CTC2
-        gte_.write_ctrl(rd + 32, read_reg(rt));
+        enqueue_gte_write(rd + 32, read_reg(rt), 1, true);
       } else {
         gte_.execute(instr);
         cycles = gte_.command_cycles(instr);
@@ -765,7 +848,7 @@ uint32_t CpuCore::execute_instruction(uint32_t instr,
         break;
       }
       uint32_t value = memory_->read32(addr);
-      enqueue_gte_write(rt, value, 3);
+      enqueue_gte_write(rt, value, 3, false);
       break;
     }
     case 0x33: { // LWC3
@@ -836,26 +919,26 @@ uint32_t CpuCore::execute_instruction(uint32_t instr,
   return cycles;
 }
 
-void CpuCore::enqueue_gte_write(uint32_t reg, uint32_t value, uint32_t delay) {
-  gte_pending_writes_.push_back({reg, value, delay});
+void CpuCore::enqueue_gte_write(uint32_t reg, uint32_t value, uint32_t delay, bool is_ctrl) {
+  gte_pending_writes_.push_back({reg, value, delay, is_ctrl});
 }
 
-void CpuCore::flush_gte_writes() {
+void CpuCore::flush_gte_writes(uint32_t cycles) {
   if (gte_pending_writes_.empty()) {
     return;
-  }
-  for (auto &pending : gte_pending_writes_) {
-    if (pending.delay > 0) {
-      pending.delay -= 1;
-    }
   }
   size_t out = 0;
   for (size_t i = 0; i < gte_pending_writes_.size(); ++i) {
     auto &pending = gte_pending_writes_[i];
-    if (pending.delay == 0) {
-      gte_.write_data(pending.reg, pending.value);
+    if (pending.delay <= cycles) {
+      if (pending.is_ctrl) {
+        gte_.write_ctrl(pending.reg, pending.value);
+      } else {
+        gte_.write_data(pending.reg, pending.value);
+      }
       continue;
     }
+    pending.delay -= cycles;
     gte_pending_writes_[out++] = pending;
   }
   gte_pending_writes_.resize(out);

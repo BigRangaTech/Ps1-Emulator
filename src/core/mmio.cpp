@@ -63,6 +63,12 @@ void MmioBus::reset_gpu_state() {
   gpu_display_depth24_ = false;
   gpu_dma_dir_ = 0;
   gpu_field_ = false;
+  gpu_display_x_ = 0;
+  gpu_display_y_ = 0;
+  gpu_h_range_start_ = 0x200;
+  gpu_h_range_end_ = static_cast<uint16_t>(0x200 + 256 * 10);
+  gpu_v_range_start_ = 0x10;
+  gpu_v_range_end_ = static_cast<uint16_t>(0x10 + 240);
   gpu_tex_window_ = 0;
   gpu_draw_area_tl_ = 0;
   gpu_draw_area_br_ = (0x3FFu) | (0x1FFu << 10);
@@ -594,6 +600,21 @@ void MmioBus::write32(uint32_t addr, uint32_t value) {
       }
       case 0x04: { // DMA direction
         gpu_dma_dir_ = value & 0x3u;
+        break;
+      }
+      case 0x05: { // Display start (VRAM)
+        gpu_display_x_ = static_cast<uint16_t>(value & 0x3FFu);
+        gpu_display_y_ = static_cast<uint16_t>((value >> 10) & 0x1FFu);
+        break;
+      }
+      case 0x06: { // Horizontal display range
+        gpu_h_range_start_ = static_cast<uint16_t>(value & 0xFFFu);
+        gpu_h_range_end_ = static_cast<uint16_t>((value >> 12) & 0xFFFu);
+        break;
+      }
+      case 0x07: { // Vertical display range
+        gpu_v_range_start_ = static_cast<uint16_t>(value & 0x3FFu);
+        gpu_v_range_end_ = static_cast<uint16_t>((value >> 10) & 0x3FFu);
         break;
       }
       case 0x08: { // Display mode

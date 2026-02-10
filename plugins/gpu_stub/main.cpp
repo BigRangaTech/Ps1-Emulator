@@ -271,13 +271,32 @@ public:
     switch (cmd) {
       case 0x00: { // Reset GPU
         std::fill(vram_.begin(), vram_.end(), 0);
-        display_enabled_ = true;
+        display_enabled_ = false;
         display_x_ = 0;
         display_y_ = 0;
         h_range_start_ = 0x200;
         h_range_end_ = 0x200 + 256 * 10;
         v_range_start_ = 0x10;
         v_range_end_ = 0x10 + 240;
+        draw_x1_ = 0;
+        draw_y1_ = 0;
+        draw_x2_ = kVramWidth - 1;
+        draw_y2_ = kVramHeight - 1;
+        draw_offset_x_ = 0;
+        draw_offset_y_ = 0;
+        texpage_x_ = 0;
+        texpage_y_ = 0;
+        tex_depth_ = 0;
+        blend_mode_ = 0;
+        dithering_enabled_ = false;
+        mask_set_ = false;
+        mask_eval_ = false;
+        rect_flip_x_ = false;
+        rect_flip_y_ = false;
+        tex_window_mask_x_ = 0;
+        tex_window_mask_y_ = 0;
+        tex_window_offset_x_ = 0;
+        tex_window_offset_y_ = 0;
         set_display_mode(0x00000000);
         break;
       }
@@ -352,7 +371,7 @@ public:
         src_y = kVramHeight - 1;
       }
       for (int x = 0; x < display_width_; ++x) {
-        int src_x = display_x_ + x;
+        int src_x = display_x_ + (display_flip_x_ ? (display_width_ - 1 - x) : x);
         uint16_t color = vram_[static_cast<size_t>(src_y) * kVramWidth + src_x];
         frame_[static_cast<size_t>(y) * display_width_ + x] = color15_to_32(color);
       }
@@ -389,6 +408,8 @@ private:
       tex_depth_ = static_cast<int>((mode >> 7) & 0x3u);
       blend_mode_ = static_cast<int>((mode >> 5) & 0x3u);
       dithering_enabled_ = (mode & (1u << 9)) != 0;
+      rect_flip_x_ = (mode & (1u << 12)) != 0;
+      rect_flip_y_ = (mode & (1u << 13)) != 0;
     } else if (cmd == 0xE3) { // draw area top-left
       draw_x1_ = static_cast<int>(word & 0x3FFu);
       draw_y1_ = static_cast<int>((word >> 10) & 0x3FFu);
@@ -421,6 +442,7 @@ private:
     int hres = static_cast<int>(word & 0x3u);
     bool hres2 = (word & (1u << 6)) != 0;
     interlaced_ = (word & (1u << 5)) != 0;
+    display_flip_x_ = (word & (1u << 7)) != 0;
     int width = 320;
     if (hres2) {
       width = 368;
@@ -587,6 +609,7 @@ private:
     int tex_depth = tex_depth_;
     bool have_clut = false;
     bool have_tpage = false;
+    uint16_t tpage_attr = 0;
     for (size_t v = 0; v < vertices; ++v) {
       if (index >= words.size()) {
         return;
@@ -615,16 +638,18 @@ private:
           clut_y = static_cast<int>((clut >> 6) & 0x1FFu);
           have_clut = true;
         } else if (!have_tpage) {
-          uint16_t tpage = static_cast<uint16_t>(uv >> 16);
-          tpage_x = static_cast<int>(tpage & 0x0Fu) * 64;
-          tpage_y = (tpage & 0x10u) ? 256 : 0;
-          tex_depth = static_cast<int>((tpage >> 7) & 0x3u);
+          tpage_attr = static_cast<uint16_t>(uv >> 16);
+          tpage_x = static_cast<int>(tpage_attr & 0x0Fu) * 64;
+          tpage_y = (tpage_attr & 0x10u) ? 256 : 0;
+          tex_depth = static_cast<int>((tpage_attr >> 7) & 0x3u);
           have_tpage = true;
         }
       }
     }
 
     if (textured) {
+      int poly_blend = have_tpage ? static_cast<int>((tpage_attr >> 5) & 0x3u)
+                                  : blend_mode_;
       draw_textured_triangle(verts[0],
                              verts[1],
                              verts[2],
@@ -634,6 +659,7 @@ private:
                              clut_x,
                              clut_y,
                              semi,
+                             poly_blend,
                              gouraud,
                              raw);
       if (quad) {
@@ -646,6 +672,7 @@ private:
                                clut_x,
                                clut_y,
                                semi,
+                               poly_blend,
                                gouraud,
                                raw);
       }
@@ -851,8 +878,10 @@ private:
     }
     for (int yy = 0; yy < h; ++yy) {
       for (int xx = 0; xx < w; ++xx) {
-        int tex_u = static_cast<int>(u) + xx;
-        int tex_v = static_cast<int>(v) + yy;
+        int tex_u = static_cast<int>(u) + (rect_flip_x_ ? -xx : xx);
+        int tex_v = static_cast<int>(v) + (rect_flip_y_ ? -yy : yy);
+        tex_u &= 0xFF;
+        tex_v &= 0xFF;
         uint16_t color = 0;
         bool transparent = false;
         if (!sample_texture(tex_u, tex_v, tex_depth, tpage_x, tpage_y, clut_x, clut_y, color, transparent)) {
@@ -929,6 +958,7 @@ private:
                               int clut_x,
                               int clut_y,
                               bool semi,
+                              int blend_mode,
                               bool gouraud,
                               bool raw) {
     int min_x = std::max(draw_x1_, std::min({v0.x, v1.x, v2.x}));
@@ -988,7 +1018,7 @@ private:
           shaded = modulate_color(color, modulate);
         }
         bool apply_semi = semi && (color & 0x8000u);
-        set_pixel(x, y, static_cast<uint16_t>(shaded & 0x7FFFu), apply_semi);
+        set_pixel(x, y, static_cast<uint16_t>(shaded & 0x7FFFu), apply_semi, blend_mode);
       }
     }
   }
@@ -1140,6 +1170,10 @@ private:
   }
 
   void set_pixel(int x, int y, uint16_t color, bool semi) {
+    set_pixel(x, y, color, semi, blend_mode_);
+  }
+
+  void set_pixel(int x, int y, uint16_t color, bool semi, int blend_mode) {
     if (x < draw_x1_ || x > draw_x2_ || y < draw_y1_ || y > draw_y2_) {
       return;
     }
@@ -1156,7 +1190,7 @@ private:
     }
     if (semi) {
       uint16_t dst = static_cast<uint16_t>(vram_[idx] & 0x7FFFu);
-      uint16_t blended = blend_colors(dst, src, blend_mode_);
+      uint16_t blended = blend_colors(dst, src, blend_mode);
       vram_[idx] = mask_set_ ? static_cast<uint16_t>(blended | 0x8000u) : blended;
     } else {
       vram_[idx] = mask_set_ ? static_cast<uint16_t>(src | 0x8000u) : src;
@@ -1166,6 +1200,7 @@ private:
   bool headless_ = false;
   bool running_ = true;
   bool display_enabled_ = true;
+  bool display_flip_x_ = false;
   bool interlaced_ = false;
   bool field_parity_ = false;
   int h_range_start_ = 0;
@@ -1189,11 +1224,13 @@ private:
   int draw_offset_y_ = 0;
   int texpage_x_ = 0;
   int texpage_y_ = 0;
-  int tex_depth_ = 2;
+  int tex_depth_ = 0;
   int blend_mode_ = 0;
   bool mask_set_ = false;
   bool mask_eval_ = false;
   bool dithering_enabled_ = false;
+  bool rect_flip_x_ = false;
+  bool rect_flip_y_ = false;
   int tex_window_mask_x_ = 0;
   int tex_window_mask_y_ = 0;
   int tex_window_offset_x_ = 0;

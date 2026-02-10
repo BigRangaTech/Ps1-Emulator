@@ -217,6 +217,68 @@ static bool test_branch_delay() {
   return true;
 }
 
+static bool test_branch_likely_not_taken() {
+  ps1emu::MemoryMap mem;
+  ps1emu::MmioBus mmio;
+  ps1emu::Scheduler sched;
+  mem.reset();
+  mmio.reset();
+  sched.reset();
+  mem.attach_mmio(mmio);
+
+  ps1emu::CpuCore cpu(mem, sched);
+  cpu.reset();
+
+  auto &st = cpu.state();
+  st.pc = 0x00000000;
+  st.next_pc = st.pc + 4;
+  st.gpr[1] = 1;
+  st.gpr[2] = 2;
+  st.gpr[3] = 0;
+
+  mem.write32(0x00000000, encode_i(0x14, 1, 2, 1)); // beql r1, r2, +1 (not taken)
+  mem.write32(0x00000004, encode_i(0x08, 3, 3, 1)); // addi r3, r3, 1 (delay slot, skipped)
+  mem.write32(0x00000008, encode_i(0x08, 3, 3, 2)); // addi r3, r3, 2 (fallthrough)
+
+  cpu.step();
+  cpu.step();
+  cpu.step();
+
+  CHECK(st.gpr[3] == 2);
+  return true;
+}
+
+static bool test_branch_likely_taken() {
+  ps1emu::MemoryMap mem;
+  ps1emu::MmioBus mmio;
+  ps1emu::Scheduler sched;
+  mem.reset();
+  mmio.reset();
+  sched.reset();
+  mem.attach_mmio(mmio);
+
+  ps1emu::CpuCore cpu(mem, sched);
+  cpu.reset();
+
+  auto &st = cpu.state();
+  st.pc = 0x00000000;
+  st.next_pc = st.pc + 4;
+  st.gpr[1] = 1;
+  st.gpr[2] = 1;
+  st.gpr[3] = 0;
+
+  mem.write32(0x00000000, encode_i(0x14, 1, 2, 1)); // beql r1, r2, +1 (taken)
+  mem.write32(0x00000004, encode_i(0x08, 3, 3, 1)); // addi r3, r3, 1 (delay slot)
+  mem.write32(0x00000008, encode_i(0x08, 3, 3, 2)); // addi r3, r3, 2 (target)
+
+  cpu.step();
+  cpu.step();
+  cpu.step();
+
+  CHECK(st.gpr[3] == 3);
+  return true;
+}
+
 static bool test_mmio_gpu_fifo() {
   ps1emu::MmioBus mmio;
   mmio.reset();
@@ -468,6 +530,62 @@ static bool test_gte_dpcs_depth_cue_extremes() {
 
   uint32_t rgb2 = gte.read_data(22);
   CHECK((rgb2 & 0x00FFFFFFu) == 0x00000000u);
+  return true;
+}
+
+static bool test_gte_command_cycles() {
+  ps1emu::MemoryMap mem;
+  ps1emu::MmioBus mmio;
+  ps1emu::Scheduler sched;
+  mem.reset();
+  mmio.reset();
+  sched.reset();
+  mem.attach_mmio(mmio);
+
+  ps1emu::CpuCore cpu(mem, sched);
+  cpu.reset();
+
+  auto &st = cpu.state();
+  st.pc = 0x00000000;
+  st.next_pc = st.pc + 4;
+
+  mem.write32(0x00000000, (0x12u << 26) | (0x10u << 21) | 0x01u); // COP2 RTPS
+  uint32_t cycles = cpu.step();
+  CHECK(cycles == 15);
+  return true;
+}
+
+static bool test_gte_lwc2_delay() {
+  ps1emu::MemoryMap mem;
+  ps1emu::MmioBus mmio;
+  ps1emu::Scheduler sched;
+  mem.reset();
+  mmio.reset();
+  sched.reset();
+  mem.attach_mmio(mmio);
+
+  ps1emu::CpuCore cpu(mem, sched);
+  cpu.reset();
+
+  auto &st = cpu.state();
+  st.pc = 0x00000000;
+  st.next_pc = st.pc + 4;
+
+  mem.write32(0x00001000, 0x12345678);
+  mem.write32(0x00000000, encode_i(0x32, 0, 1, 0x1000)); // LWC2 reg1, 0x1000(r0)
+  mem.write32(0x00000004, (0x12u << 26) | (0u << 21) | (2u << 16) | (1u << 11)); // MFC2 r2, reg1
+  mem.write32(0x00000008, 0x00000000); // nop
+  mem.write32(0x0000000C, (0x12u << 26) | (0u << 21) | (3u << 16) | (1u << 11)); // MFC2 r3, reg1
+  mem.write32(0x00000010, 0x00000000); // nop
+
+  cpu.step(); // LWC2
+  cpu.step(); // MFC2 r2
+  cpu.step(); // nop (commit r2)
+  cpu.step(); // MFC2 r3 (should see new value)
+  cpu.step(); // nop (commit r3)
+
+  CHECK(st.gpr[2] == 0);
+  CHECK(st.gpr[3] == 0x00005678u);
   return true;
 }
 
@@ -773,6 +891,8 @@ int main() {
   } tests[] = {
       {"load_delay", test_load_delay},
       {"branch_delay", test_branch_delay},
+      {"branch_likely_not_taken", test_branch_likely_not_taken},
+      {"branch_likely_taken", test_branch_likely_taken},
       {"mmio_gpu_fifo", test_mmio_gpu_fifo},
       {"gpu_status_bits", test_gpu_status_bits},
       {"gpu_read_fifo", test_gpu_read_fifo},
@@ -787,6 +907,8 @@ int main() {
       {"gte_mvmva_fc_bug", test_gte_mvmva_fc_bug},
       {"gte_mvmva_mx3", test_gte_mvmva_mx3_garbage_matrix},
       {"gte_dpcs_depth_cue", test_gte_dpcs_depth_cue_extremes},
+      {"gte_command_cycles", test_gte_command_cycles},
+      {"gte_lwc2_delay", test_gte_lwc2_delay},
       {"dma_irq", test_dma_irq},
       {"timer_irq_on_target", test_timer_irq_on_target},
       {"gpu_packet_parsing", test_gpu_packet_parsing},
