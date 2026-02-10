@@ -16,6 +16,7 @@ void CpuCore::reset() {
   state_.pc = 0xBFC00000;
   state_.next_pc = state_.pc + 4;
   gte_.reset();
+  gte_pending_writes_.clear();
   load_delay_ = {};
   load_delay_shadow_valid_ = false;
   load_delay_shadow_reg_ = 0;
@@ -97,6 +98,7 @@ uint32_t CpuCore::step_interpreter() {
   }
   state_.gpr[0] = 0;
 
+  flush_gte_writes();
   load_delay_shadow_valid_ = false;
   if (scheduler_) {
     scheduler_->advance(cycles);
@@ -204,6 +206,7 @@ uint32_t CpuCore::execute_instruction(uint32_t instr,
   out_load = {};
   out_branch = false;
   out_exception = false;
+  uint32_t cycles = 1;
 
   uint32_t op = instr >> 26;
   uint32_t rs = (instr >> 21) & 0x1F;
@@ -489,6 +492,7 @@ uint32_t CpuCore::execute_instruction(uint32_t instr,
         gte_.write_ctrl(rd + 32, read_reg(rt));
       } else {
         gte_.execute(instr);
+        cycles = gte_.command_cycles(instr);
       }
       break;
     }
@@ -761,7 +765,7 @@ uint32_t CpuCore::execute_instruction(uint32_t instr,
         break;
       }
       uint32_t value = memory_->read32(addr);
-      gte_.write_data(rt, value);
+      enqueue_gte_write(rt, value, 3);
       break;
     }
     case 0x33: { // LWC3
@@ -829,7 +833,32 @@ uint32_t CpuCore::execute_instruction(uint32_t instr,
       break;
   }
 
-  return 1;
+  return cycles;
+}
+
+void CpuCore::enqueue_gte_write(uint32_t reg, uint32_t value, uint32_t delay) {
+  gte_pending_writes_.push_back({reg, value, delay});
+}
+
+void CpuCore::flush_gte_writes() {
+  if (gte_pending_writes_.empty()) {
+    return;
+  }
+  for (auto &pending : gte_pending_writes_) {
+    if (pending.delay > 0) {
+      pending.delay -= 1;
+    }
+  }
+  size_t out = 0;
+  for (size_t i = 0; i < gte_pending_writes_.size(); ++i) {
+    auto &pending = gte_pending_writes_[i];
+    if (pending.delay == 0) {
+      gte_.write_data(pending.reg, pending.value);
+      continue;
+    }
+    gte_pending_writes_[out++] = pending;
+  }
+  gte_pending_writes_.resize(out);
 }
 
 } // namespace ps1emu

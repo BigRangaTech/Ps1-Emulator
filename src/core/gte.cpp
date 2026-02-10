@@ -112,6 +112,25 @@ void Gte::set_flag(int bit) {
   }
 }
 
+void Gte::flag_mac_overflow(int index, int64_t value) {
+  if (index < 0 || index > 3) {
+    return;
+  }
+  if (index == 0) {
+    if (value > 0x7FFFFFFFLL) {
+      set_flag(16);
+    } else if (value < -0x80000000LL) {
+      set_flag(15);
+    }
+  } else {
+    if (value > ((1LL << 43) - 1)) {
+      set_flag(30 - (index - 1));
+    } else if (value < -(1LL << 43)) {
+      set_flag(27 - (index - 1));
+    }
+  }
+}
+
 void Gte::finalize_flags() {
   uint32_t mask = 0;
   mask |= 0x7F800000u; // bits 30..23
@@ -199,19 +218,7 @@ void Gte::set_mac(int index, int64_t value) {
   if (index < 0 || index > 3) {
     return;
   }
-  if (index == 0) {
-    if (value > 0x7FFFFFFFLL) {
-      set_flag(16);
-    } else if (value < -0x80000000LL) {
-      set_flag(15);
-    }
-  } else {
-    if (value > ((1LL << 43) - 1)) {
-      set_flag(30 - (index - 1));
-    } else if (value < -(1LL << 43)) {
-      set_flag(27 - (index - 1));
-    }
-  }
+  flag_mac_overflow(index, value);
   data_[24 + index] = static_cast<uint32_t>(static_cast<int32_t>(value));
 }
 
@@ -290,29 +297,15 @@ void Gte::apply_llm_lcm(int32_t vx, int32_t vy, int32_t vz, bool sf, bool lm) {
 }
 
 void Gte::apply_depth_cue(int64_t &mac1, int64_t &mac2, int64_t &mac3, bool sf) {
+  (void)sf;
   int32_t ir0 = clamp_ir0(sign_extend16(data_[8]));
   int64_t fc1 = static_cast<int64_t>(static_cast<int32_t>(ctrl_[21])) << 12;
   int64_t fc2 = static_cast<int64_t>(static_cast<int32_t>(ctrl_[22])) << 12;
   int64_t fc3 = static_cast<int64_t>(static_cast<int32_t>(ctrl_[23])) << 12;
 
-  int64_t t1 = fc1 - mac1;
-  int64_t t2 = fc2 - mac2;
-  int64_t t3 = fc3 - mac3;
-  if (sf) {
-    t1 >>= 12;
-    t2 >>= 12;
-    t3 >>= 12;
-  }
-  set_ir(1, t1, false);
-  set_ir(2, t2, false);
-  set_ir(3, t3, false);
-  int32_t ir1 = sign_extend16(data_[9]);
-  int32_t ir2 = sign_extend16(data_[10]);
-  int32_t ir3 = sign_extend16(data_[11]);
-
-  mac1 = mac1 + static_cast<int64_t>(ir1) * ir0;
-  mac2 = mac2 + static_cast<int64_t>(ir2) * ir0;
-  mac3 = mac3 + static_cast<int64_t>(ir3) * ir0;
+  mac1 = mac1 + ((fc1 - mac1) * ir0 >> 12);
+  mac2 = mac2 + ((fc2 - mac2) * ir0 >> 12);
+  mac3 = mac3 + ((fc3 - mac3) * ir0 >> 12);
 }
 
 void Gte::store_color_from_mac(int64_t mac1,
@@ -547,7 +540,18 @@ void Gte::cmd_rtps(bool sf) {
   set_mac(3, mac3);
   set_ir(1, mac1, false);
   set_ir(2, mac2, false);
-  set_ir(3, mac3, false);
+  int32_t ir3 = clamp_ir(mac3, false);
+  data_[11] = static_cast<uint32_t>(static_cast<int16_t>(ir3));
+  if (sf) {
+    if (mac3 < -0x8000 || mac3 > 0x7FFF) {
+      set_flag(22);
+    }
+  } else {
+    int64_t mac3_shift = mac3 >> 12;
+    if (mac3_shift < -0x8000 || mac3_shift > 0x7FFF) {
+      set_flag(22);
+    }
+  }
 
   int64_t sz3_raw = mac3;
   if (!sf) {
@@ -602,7 +606,18 @@ void Gte::cmd_rtpt(bool sf) {
     set_mac(3, mac3);
     set_ir(1, mac1, false);
     set_ir(2, mac2, false);
-    set_ir(3, mac3, false);
+    int32_t ir3 = clamp_ir(mac3, false);
+    data_[11] = static_cast<uint32_t>(static_cast<int16_t>(ir3));
+    if (sf) {
+      if (mac3 < -0x8000 || mac3 > 0x7FFF) {
+        set_flag(22);
+      }
+    } else {
+      int64_t mac3_shift = mac3 >> 12;
+      if (mac3_shift < -0x8000 || mac3_shift > 0x7FFF) {
+        set_flag(22);
+      }
+    }
 
     int64_t sz3_raw = mac3;
     if (!sf) {
@@ -646,7 +661,15 @@ void Gte::cmd_mvmva(uint32_t opcode) {
       m = matrix_lc();
       break;
     default:
-      m = {};
+      m.m11 = -0x60;
+      m.m12 = 0x60;
+      m.m13 = sign_extend16(data_[8]);
+      m.m21 = sign_extend16(ctrl_[1]);
+      m.m22 = sign_extend16(ctrl_[1]);
+      m.m23 = sign_extend16(ctrl_[1]);
+      m.m31 = sign_extend16(ctrl_[2]);
+      m.m32 = sign_extend16(ctrl_[2]);
+      m.m33 = sign_extend16(ctrl_[2]);
       break;
   }
 
@@ -675,23 +698,32 @@ void Gte::cmd_mvmva(uint32_t opcode) {
     ty = static_cast<int64_t>(static_cast<int32_t>(ctrl_[14]));
     tz = static_cast<int64_t>(static_cast<int32_t>(ctrl_[15]));
   } else if (cv == 2) {
-    tx = static_cast<int64_t>(static_cast<int32_t>(ctrl_[21]));
-    ty = static_cast<int64_t>(static_cast<int32_t>(ctrl_[22]));
-    tz = static_cast<int64_t>(static_cast<int32_t>(ctrl_[23]));
+    tx = 0;
+    ty = 0;
+    tz = 0;
   }
 
-  int64_t mac1 = (tx << 12) +
-                 static_cast<int64_t>(m.m11) * vx +
-                 static_cast<int64_t>(m.m12) * vy +
-                 static_cast<int64_t>(m.m13) * vz;
-  int64_t mac2 = (ty << 12) +
-                 static_cast<int64_t>(m.m21) * vx +
-                 static_cast<int64_t>(m.m22) * vy +
-                 static_cast<int64_t>(m.m23) * vz;
-  int64_t mac3 = (tz << 12) +
-                 static_cast<int64_t>(m.m31) * vx +
-                 static_cast<int64_t>(m.m32) * vy +
-                 static_cast<int64_t>(m.m33) * vz;
+  int64_t mac1 = 0;
+  int64_t mac2 = 0;
+  int64_t mac3 = 0;
+  if (cv == 2) {
+    mac1 = static_cast<int64_t>(m.m13) * vz;
+    mac2 = static_cast<int64_t>(m.m23) * vz;
+    mac3 = static_cast<int64_t>(m.m33) * vz;
+  } else {
+    mac1 = (tx << 12) +
+           static_cast<int64_t>(m.m11) * vx +
+           static_cast<int64_t>(m.m12) * vy +
+           static_cast<int64_t>(m.m13) * vz;
+    mac2 = (ty << 12) +
+           static_cast<int64_t>(m.m21) * vx +
+           static_cast<int64_t>(m.m22) * vy +
+           static_cast<int64_t>(m.m23) * vz;
+    mac3 = (tz << 12) +
+           static_cast<int64_t>(m.m31) * vx +
+           static_cast<int64_t>(m.m32) * vy +
+           static_cast<int64_t>(m.m33) * vz;
+  }
 
   if (sf) {
     mac1 >>= 12;
@@ -801,6 +833,9 @@ void Gte::cmd_gpf(bool sf, bool lm) {
   int64_t mac1 = static_cast<int64_t>(ir1) * ir0;
   int64_t mac2 = static_cast<int64_t>(ir2) * ir0;
   int64_t mac3 = static_cast<int64_t>(ir3) * ir0;
+  flag_mac_overflow(1, mac1);
+  flag_mac_overflow(2, mac2);
+  flag_mac_overflow(3, mac3);
   store_color_from_mac(mac1, mac2, mac3, sf, lm, rgbc().code);
 }
 
@@ -817,9 +852,15 @@ void Gte::cmd_gpl(bool sf, bool lm) {
     mac2 <<= 12;
     mac3 <<= 12;
   }
+  set_mac(1, mac1);
+  set_mac(2, mac2);
+  set_mac(3, mac3);
   mac1 += static_cast<int64_t>(ir1) * ir0;
   mac2 += static_cast<int64_t>(ir2) * ir0;
   mac3 += static_cast<int64_t>(ir3) * ir0;
+  flag_mac_overflow(1, mac1);
+  flag_mac_overflow(2, mac2);
+  flag_mac_overflow(3, mac3);
   store_color_from_mac(mac1, mac2, mac3, sf, lm, rgbc().code);
 }
 
@@ -829,6 +870,9 @@ void Gte::cmd_dpcs(bool sf, bool lm) {
   int64_t mac2 = static_cast<int64_t>(c.g) << 16;
   int64_t mac3 = static_cast<int64_t>(c.b) << 16;
   apply_depth_cue(mac1, mac2, mac3, sf);
+  flag_mac_overflow(1, mac1);
+  flag_mac_overflow(2, mac2);
+  flag_mac_overflow(3, mac3);
   store_color_from_mac(mac1, mac2, mac3, sf, lm, c.code);
 }
 
@@ -840,6 +884,9 @@ void Gte::cmd_dpct(bool sf, bool lm) {
     int64_t mac2 = static_cast<int64_t>(c.g) << 16;
     int64_t mac3 = static_cast<int64_t>(c.b) << 16;
     apply_depth_cue(mac1, mac2, mac3, sf);
+    flag_mac_overflow(1, mac1);
+    flag_mac_overflow(2, mac2);
+    flag_mac_overflow(3, mac3);
     store_color_from_mac(mac1, mac2, mac3, sf, lm, code);
   }
 }
@@ -852,6 +899,9 @@ void Gte::cmd_intpl(bool sf, bool lm) {
   int64_t mac2 = static_cast<int64_t>(ir2) << 12;
   int64_t mac3 = static_cast<int64_t>(ir3) << 12;
   apply_depth_cue(mac1, mac2, mac3, sf);
+  flag_mac_overflow(1, mac1);
+  flag_mac_overflow(2, mac2);
+  flag_mac_overflow(3, mac3);
   store_color_from_mac(mac1, mac2, mac3, sf, lm, rgbc().code);
 }
 
@@ -867,6 +917,9 @@ void Gte::cmd_dcpl(bool sf, bool lm) {
   mac2 <<= 4;
   mac3 <<= 4;
   apply_depth_cue(mac1, mac2, mac3, sf);
+  flag_mac_overflow(1, mac1);
+  flag_mac_overflow(2, mac2);
+  flag_mac_overflow(3, mac3);
   store_color_from_mac(mac1, mac2, mac3, sf, lm, c.code);
 }
 
@@ -913,6 +966,9 @@ void Gte::cmd_cc(bool sf, bool lm, bool cdp) {
   if (cdp) {
     apply_depth_cue(mac1, mac2, mac3, sf);
   }
+  flag_mac_overflow(1, mac1);
+  flag_mac_overflow(2, mac2);
+  flag_mac_overflow(3, mac3);
   store_color_from_mac(mac1, mac2, mac3, sf, lm, c.code);
 }
 
@@ -951,6 +1007,9 @@ void Gte::cmd_nccs(bool sf, bool lm, bool triple, bool depth_cue) {
     if (depth_cue) {
       apply_depth_cue(mac1, mac2, mac3, sf);
     }
+    flag_mac_overflow(1, mac1);
+    flag_mac_overflow(2, mac2);
+    flag_mac_overflow(3, mac3);
     store_color_from_mac(mac1, mac2, mac3, sf, lm, c.code);
   }
 }
@@ -1033,6 +1092,58 @@ void Gte::execute(uint32_t opcode) {
   }
 
   finalize_flags();
+}
+
+uint32_t Gte::command_cycles(uint32_t opcode) const {
+  uint32_t op = opcode & 0x3Fu;
+  switch (op) {
+    case 0x01: // RTPS
+      return 15;
+    case 0x30: // RTPT
+      return 23;
+    case 0x06: // NCLIP
+      return 8;
+    case 0x0C: // OP
+      return 6;
+    case 0x10: // DPCS
+      return 8;
+    case 0x11: // INTPL
+      return 8;
+    case 0x12: // MVMVA
+      return 8;
+    case 0x13: // NCDS
+      return 19;
+    case 0x14: // CDP
+      return 13;
+    case 0x16: // NCDT
+      return 44;
+    case 0x1B: // NCCS
+      return 17;
+    case 0x1C: // CC
+      return 11;
+    case 0x1E: // NCS
+      return 14;
+    case 0x20: // NCT
+      return 30;
+    case 0x28: // SQR
+      return 5;
+    case 0x29: // DCPL
+      return 8;
+    case 0x2A: // DPCT
+      return 17;
+    case 0x2D: // AVSZ3
+      return 5;
+    case 0x2E: // AVSZ4
+      return 6;
+    case 0x3D: // GPF
+      return 5;
+    case 0x3E: // GPL
+      return 5;
+    case 0x3F: // NCCT
+      return 39;
+    default:
+      return 1;
+  }
 }
 
 } // namespace ps1emu

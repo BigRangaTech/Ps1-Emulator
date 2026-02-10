@@ -1,5 +1,6 @@
 #include "core/cpu.h"
 #include "core/emu_core.h"
+#include "core/gte.h"
 #include "core/gpu_packets.h"
 #include "core/memory_map.h"
 #include "core/mmio.h"
@@ -21,6 +22,27 @@ static uint32_t encode_i(uint8_t op, uint8_t rs, uint8_t rt, uint16_t imm) {
          (static_cast<uint32_t>(rs) << 21) |
          (static_cast<uint32_t>(rt) << 16) |
          static_cast<uint32_t>(imm);
+}
+
+static uint32_t gte_cmd(uint32_t op, bool sf = false, bool lm = false) {
+  return op | (sf ? (1u << 19) : 0u) | (lm ? (1u << 10) : 0u);
+}
+
+static uint32_t gte_cmd_mvmva(uint32_t mx,
+                              uint32_t v,
+                              uint32_t cv,
+                              bool sf = false,
+                              bool lm = false) {
+  return 0x12u |
+         ((mx & 0x3u) << 17) |
+         ((v & 0x3u) << 15) |
+         ((cv & 0x3u) << 13) |
+         (sf ? (1u << 19) : 0u) |
+         (lm ? (1u << 10) : 0u);
+}
+
+static int16_t gte_read_s16(ps1emu::Gte &gte, uint32_t reg) {
+  return static_cast<int16_t>(gte.read_data(reg) & 0xFFFFu);
 }
 
 #define CHECK(cond)                                                                               \
@@ -272,6 +294,180 @@ static bool test_gpu_read_fifo() {
   CHECK((mmio.read32(0x1F801814) & (1u << 27)) == 0);
   uint32_t latched = mmio.read32(0x1F801810);
   CHECK(latched == 0x55667788u);
+  return true;
+}
+
+static bool test_gte_flags_and_saturation() {
+  ps1emu::Gte gte;
+  gte.reset();
+  gte.write_data(9, 0x4000);
+  gte.write_data(10, 0x4000);
+  gte.write_data(11, 0x4000);
+  gte.execute(gte_cmd(0x28, false, false)); // SQR
+
+  uint32_t flags = gte.read_ctrl(63);
+  CHECK((flags & (1u << 24)) != 0);
+  CHECK((flags & (1u << 23)) != 0);
+  CHECK((flags & (1u << 22)) != 0);
+  return true;
+}
+
+static bool test_gte_color_fifo_saturation() {
+  ps1emu::Gte gte;
+  gte.reset();
+  gte.write_data(8, 0x1000);
+  gte.write_data(9, 0x7FFF);
+  gte.write_data(10, 0x7FFF);
+  gte.write_data(11, 0x7FFF);
+  gte.execute(gte_cmd(0x3D, false, false)); // GPF
+
+  uint32_t flags = gte.read_ctrl(63);
+  CHECK((flags & (1u << 21)) != 0);
+  CHECK((flags & (1u << 20)) != 0);
+  CHECK((flags & (1u << 19)) != 0);
+
+  uint32_t rgb2 = gte.read_data(22);
+  CHECK((rgb2 & 0x00FFFFFFu) == 0x00FFFFFFu);
+  return true;
+}
+
+static bool test_gte_divide_overflow() {
+  ps1emu::Gte gte;
+  gte.reset();
+  gte.write_ctrl(32, 1);  // RT m11
+  gte.write_ctrl(34, 1);  // RT m22
+  gte.write_ctrl(36, 1);  // RT m33
+  gte.write_ctrl(58, 0x2000); // H
+  gte.write_data(0, 0x00000000); // VXY0
+  gte.write_data(1, 0x00000001); // VZ0
+
+  gte.execute(gte_cmd(0x01, false, false)); // RTPS
+  uint32_t flags = gte.read_ctrl(63);
+  CHECK((flags & (1u << 17)) != 0);
+  return true;
+}
+
+static bool test_gte_dpct_uses_rgb0() {
+  ps1emu::Gte gte;
+  gte.reset();
+  gte.write_data(6, 0x00AABBCCu);  // RGBC
+  gte.write_data(20, 0x00112233u); // RGB0
+  gte.write_data(21, 0x00445566u); // RGB1
+  gte.write_data(22, 0x00778899u); // RGB2
+  gte.write_data(8, 0);            // IR0 = 0
+
+  gte.execute(gte_cmd(0x2A, true, true)); // DPCT (sf=1)
+  uint32_t rgb0 = gte.read_data(20);
+  uint32_t rgb1 = gte.read_data(21);
+  uint32_t rgb2 = gte.read_data(22);
+  CHECK((rgb0 & 0x00FFFFFFu) == 0x00112233u);
+  CHECK((rgb1 & 0x00FFFFFFu) == 0x00445566u);
+  CHECK((rgb2 & 0x00FFFFFFu) == 0x00778899u);
+  return true;
+}
+
+static bool test_gte_rtps_lm_ignored() {
+  ps1emu::Gte gte;
+  gte.reset();
+  gte.write_ctrl(32, 1);
+  gte.write_ctrl(34, 1);
+  gte.write_ctrl(36, 1);
+  gte.write_data(0, 0x0000FFFFu); // VXY0: vx=-1, vy=0
+  gte.write_data(1, 0x00000001u); // VZ0
+
+  gte.execute(gte_cmd(0x01, false, true)); // RTPS, lm bit set
+  CHECK(gte_read_s16(gte, 9) == -1);
+  return true;
+}
+
+static bool test_gte_gpl_overflow_flag() {
+  ps1emu::Gte gte;
+  gte.reset();
+  gte.write_data(8, 0x1000); // IR0 = 1.0
+  gte.write_data(9, 0x7FFF);
+  gte.write_data(10, 0x7FFF);
+  gte.write_data(11, 0x7FFF);
+  gte.write_data(25, 0x7FFFFFFF);
+  gte.write_data(26, 0x7FFFFFFF);
+  gte.write_data(27, 0x7FFFFFFF);
+
+  gte.execute(gte_cmd(0x3E, true, false)); // GPL with sf=1
+  uint32_t flags = gte.read_ctrl(63);
+  CHECK((flags & (1u << 30)) != 0);
+  CHECK((flags & (1u << 29)) != 0);
+  CHECK((flags & (1u << 28)) != 0);
+  return true;
+}
+
+static bool test_gte_h_read_sign_extension() {
+  ps1emu::Gte gte;
+  gte.reset();
+  gte.write_ctrl(58, 0x8001);
+  uint32_t h = gte.read_ctrl(58);
+  CHECK(h == 0xFFFF8001u);
+  return true;
+}
+
+static bool test_gte_sxyp_write_fifo() {
+  ps1emu::Gte gte;
+  gte.reset();
+  gte.write_data(12, 0x00010002);
+  gte.write_data(13, 0x00030004);
+  gte.write_data(14, 0x00050006);
+  gte.write_data(15, 0x00070008);
+
+  CHECK(gte.read_data(12) == 0x00030004u);
+  CHECK(gte.read_data(13) == 0x00050006u);
+  CHECK(gte.read_data(14) == 0x00070008u);
+  return true;
+}
+
+static bool test_gte_mvmva_fc_bug() {
+  ps1emu::Gte gte;
+  gte.reset();
+  gte.write_ctrl(33, 0x00000002); // RT13=2
+  gte.write_ctrl(34, 0x00030003); // RT22=3, RT23=3
+  gte.write_ctrl(36, 0x00000004); // RT33=4
+  gte.write_data(0, 0x00050006);  // VXY0: vx=5, vy=6
+  gte.write_data(1, 0x00000007);  // VZ0=7
+
+  gte.execute(gte_cmd_mvmva(0, 0, 2, false, false)); // mx=RT, v=V0, cv=FC
+
+  CHECK(gte_read_s16(gte, 9) == 14);
+  CHECK(gte_read_s16(gte, 10) == 21);
+  CHECK(gte_read_s16(gte, 11) == 28);
+  return true;
+}
+
+static bool test_gte_mvmva_mx3_garbage_matrix() {
+  ps1emu::Gte gte;
+  gte.reset();
+  gte.write_data(8, 0x0040); // IR0
+  gte.write_ctrl(33, 0x00000002); // RT13=2
+  gte.write_ctrl(34, 0x00000003); // RT22=3
+  gte.write_data(0, 0x00020001);  // VXY0: vx=1, vy=2
+  gte.write_data(1, 0x00000003);  // VZ0=3
+
+  gte.execute(gte_cmd_mvmva(3, 0, 0, false, false));
+
+  CHECK(gte_read_s16(gte, 9) == 288);
+  CHECK(gte_read_s16(gte, 10) == 12);
+  CHECK(gte_read_s16(gte, 11) == 18);
+  return true;
+}
+
+static bool test_gte_dpcs_depth_cue_extremes() {
+  ps1emu::Gte gte;
+  gte.reset();
+  gte.write_data(6, 0x00112233u);
+  gte.write_ctrl(53, 0x00000000);
+  gte.write_ctrl(54, 0x00000000);
+  gte.write_ctrl(55, 0x00000000);
+  gte.write_data(8, 0x1000); // IR0 = 1.0
+  gte.execute(gte_cmd(0x10, false, false)); // DPCS
+
+  uint32_t rgb2 = gte.read_data(22);
+  CHECK((rgb2 & 0x00FFFFFFu) == 0x00000000u);
   return true;
 }
 
@@ -580,6 +776,17 @@ int main() {
       {"mmio_gpu_fifo", test_mmio_gpu_fifo},
       {"gpu_status_bits", test_gpu_status_bits},
       {"gpu_read_fifo", test_gpu_read_fifo},
+      {"gte_flags_and_saturation", test_gte_flags_and_saturation},
+      {"gte_color_fifo_saturation", test_gte_color_fifo_saturation},
+      {"gte_divide_overflow", test_gte_divide_overflow},
+      {"gte_dpct_rgb0", test_gte_dpct_uses_rgb0},
+      {"gte_rtps_lm_ignored", test_gte_rtps_lm_ignored},
+      {"gte_gpl_overflow_flag", test_gte_gpl_overflow_flag},
+      {"gte_h_read_signext", test_gte_h_read_sign_extension},
+      {"gte_sxyp_fifo", test_gte_sxyp_write_fifo},
+      {"gte_mvmva_fc_bug", test_gte_mvmva_fc_bug},
+      {"gte_mvmva_mx3", test_gte_mvmva_mx3_garbage_matrix},
+      {"gte_dpcs_depth_cue", test_gte_dpcs_depth_cue_extremes},
       {"dma_irq", test_dma_irq},
       {"timer_irq_on_target", test_timer_irq_on_target},
       {"gpu_packet_parsing", test_gpu_packet_parsing},

@@ -53,6 +53,14 @@ private:
   void set_branch_target(uint32_t target);
   void raise_exception(uint32_t excode, uint32_t badaddr, bool in_delay, uint32_t instr_pc, uint32_t epc_pc);
   bool check_interrupts();
+  void enqueue_gte_write(uint32_t reg, uint32_t value, uint32_t delay);
+  void flush_gte_writes();
+
+  struct PendingGteWrite {
+    uint32_t reg = 0;
+    uint32_t value = 0;
+    uint32_t delay = 0;
+  };
 
   MemoryMap *memory_ = nullptr;
   Scheduler *scheduler_ = nullptr;
@@ -61,6 +69,7 @@ private:
   DynarecCache dynarec_cache_;
   std::unique_ptr<DynarecBackend> dynarec_backend_;
   Gte gte_;
+  std::vector<PendingGteWrite> gte_pending_writes_;
   PendingLoad load_delay_;
   bool load_delay_shadow_valid_ = false;
   uint32_t load_delay_shadow_reg_ = 0;

@@ -14,6 +14,7 @@ public:
   uint32_t read_ctrl(uint32_t reg) const;
   void write_ctrl(uint32_t reg, uint32_t value);
   void execute(uint32_t opcode);
+  uint32_t command_cycles(uint32_t opcode) const;
 
 private:
   struct Rgb {
@@ -41,6 +42,7 @@ private:
   void clear_flags();
   void finalize_flags();
   void set_flag(int bit);
+  void flag_mac_overflow(int index, int64_t value);
   void set_mac(int index, int64_t value);
   void set_ir(int index, int64_t value, bool lm);
   void set_ir0(int64_t value);
