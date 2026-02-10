@@ -1,7 +1,11 @@
 #include "core/mmio.h"
 
 #include <algorithm>
+#include <cstdlib>
 #include <cstring>
+#include <iomanip>
+#include <iostream>
+#include <sstream>
 
 namespace ps1emu {
 
@@ -279,6 +283,24 @@ static uint32_t recompute_dma_master(uint32_t dicr) {
   return dicr;
 }
 
+static bool cdrom_log_enabled() {
+  static int cached = -1;
+  if (cached < 0) {
+    const char *env = std::getenv("PS1EMU_LOG_CDROM");
+    cached = (env && env[0] != '\0' && env[0] != '0') ? 1 : 0;
+  }
+  return cached == 1;
+}
+
+static bool irq_log_enabled() {
+  static int cached = -1;
+  if (cached < 0) {
+    const char *env = std::getenv("PS1EMU_LOG_IRQ");
+    cached = (env && env[0] != '\0' && env[0] != '0') ? 1 : 0;
+  }
+  return cached == 1;
+}
+
 void MmioBus::cdrom_push_response(uint8_t value) {
   cdrom_response_fifo_.push_back(value);
 }
@@ -508,6 +530,23 @@ void MmioBus::cdrom_execute_command(uint8_t cmd) {
 
   cdrom_error_ = false;
   cdrom_response_fifo_.clear();
+
+  if (cdrom_log_enabled()) {
+    std::ostringstream oss;
+    oss << "[cdrom] cmd=0x" << std::hex << std::setw(2) << std::setfill('0')
+        << static_cast<int>(cmd);
+    if (!params.empty()) {
+      oss << " params=";
+      for (size_t i = 0; i < params.size(); ++i) {
+        if (i) {
+          oss << ",";
+        }
+        oss << "0x" << std::hex << std::setw(2) << std::setfill('0')
+            << static_cast<int>(params[i]);
+      }
+    }
+    std::cerr << oss.str() << "\n";
+  }
 
   switch (cmd) {
     case 0x00: { // Sync
@@ -1032,8 +1071,16 @@ void MmioBus::write16(uint32_t addr, uint16_t value) {
   }
 
   if (addr == 0x1F801070) { // I_STAT
-    irq_stat_ &= static_cast<uint16_t>(~value);
+    if (irq_log_enabled() && value != 0) {
+      std::cerr << "[irq] I_STAT clear=0x" << std::hex << std::setw(4) << std::setfill('0')
+                << value << "\n";
+    }
+    irq_stat_ &= value;
   } else if (addr == 0x1F801074) { // I_MASK
+    if (irq_log_enabled()) {
+      std::cerr << "[irq] I_MASK=0x" << std::hex << std::setw(4) << std::setfill('0')
+                << value << "\n";
+    }
     irq_mask_ = value;
   }
 }
@@ -1045,7 +1092,7 @@ void MmioBus::write32(uint32_t addr, uint32_t value) {
   }
 
   if (addr == 0x1F801070) { // I_STAT
-    irq_stat_ &= static_cast<uint16_t>(~value);
+    irq_stat_ &= static_cast<uint16_t>(value);
   } else if (addr == 0x1F801074) { // I_MASK
     irq_mask_ = static_cast<uint16_t>(value);
   }
@@ -1174,6 +1221,13 @@ void MmioBus::write32(uint32_t addr, uint32_t value) {
         dma_chcr_[index] = value;
         if (value & (1u << 24)) {
           dma_active_channel_ = index;
+          if (irq_log_enabled()) {
+            std::cerr << "[irq] DMA start ch=" << std::dec << index
+                      << " madr=0x" << std::hex << std::setw(8) << std::setfill('0')
+                      << dma_madr_[index]
+                      << " bcr=0x" << std::setw(8) << dma_bcr_[index]
+                      << " chcr=0x" << std::setw(8) << dma_chcr_[index] << "\n";
+          }
         }
       }
     }
@@ -1184,6 +1238,15 @@ void MmioBus::write32(uint32_t addr, uint32_t value) {
     dma_dicr_ &= ~(clear << 24);
     dma_dicr_ = (dma_dicr_ & 0xFF000000u) | (value & 0x00FFFFFFu);
     dma_dicr_ = recompute_dma_master(dma_dicr_);
+    if (dma_dicr_ & (1u << 31)) {
+      irq_stat_ |= (1u << 3);
+    } else {
+      irq_stat_ &= static_cast<uint16_t>(~(1u << 3));
+    }
+    if (irq_log_enabled()) {
+      std::cerr << "[irq] DICR=0x" << std::hex << std::setw(8) << std::setfill('0')
+                << dma_dicr_ << "\n";
+    }
   }
 
   if (addr >= 0x1F801100 && addr < 0x1F801130) {

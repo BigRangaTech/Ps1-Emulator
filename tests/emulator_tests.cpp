@@ -377,6 +377,30 @@ static bool test_cpu_exception_trace() {
   return true;
 }
 
+static bool test_cpu_exception_sr_shift() {
+  ps1emu::MemoryMap mem;
+  ps1emu::MmioBus mmio;
+  ps1emu::Scheduler sched;
+  mem.reset();
+  mmio.reset();
+  sched.reset();
+  mem.attach_mmio(mmio);
+
+  ps1emu::CpuCore cpu(mem, sched);
+  cpu.reset();
+
+  auto &st = cpu.state();
+  st.cop0.sr = 0x00000003u;
+  st.pc = 0x00000000;
+  st.next_pc = st.pc + 4;
+
+  mem.write32(0x00000000, 0x0000000C); // syscall
+  cpu.step();
+
+  CHECK((st.cop0.sr & 0x3Fu) == 0x0Eu);
+  return true;
+}
+
 static bool test_branch_likely_not_taken() {
   ps1emu::MemoryMap mem;
   ps1emu::MmioBus mmio;
@@ -470,7 +494,7 @@ static bool test_vblank_irq() {
   mmio.tick(kCyclesPerFrame);
   CHECK((mmio.irq_stat() & 0x1u) != 0);
 
-  mmio.write16(0x1F801070, 0x0001);
+  mmio.write16(0x1F801070, static_cast<uint16_t>(~(1u << 0)));
   CHECK((mmio.irq_stat() & 0x1u) == 0);
   return true;
 }
@@ -825,7 +849,24 @@ static bool test_dma_irq() {
   CHECK((dicr_after & (1u << 31)) != 0);
   CHECK((dicr_after & (1u << (24 + 2))) != 0);
 
-  mmio.write32(0x1F801070, (1u << 3));
+  mmio.write32(0x1F801070, static_cast<uint32_t>(~(1u << 3)));
+  CHECK((mmio.irq_stat() & (1u << 3)) == 0);
+  return true;
+}
+
+static bool test_dma_dicr_clears_irq() {
+  ps1emu::MmioBus mmio;
+  mmio.reset();
+
+  uint32_t dicr = (1u << 23) | (1u << (16 + 2));
+  mmio.write32(0x1F8010F4, dicr);
+  mmio.write32(0x1F8010A8, (1u << 24));
+
+  uint32_t chan = mmio.consume_dma_channel();
+  CHECK(chan == 2);
+  CHECK((mmio.irq_stat() & (1u << 3)) != 0);
+
+  mmio.write32(0x1F8010F4, (1u << (24 + 2)));
   CHECK((mmio.irq_stat() & (1u << 3)) == 0);
   return true;
 }
@@ -1665,6 +1706,34 @@ static bool test_cdrom_dma_transfer() {
   return true;
 }
 
+static bool test_dma_otc_clear() {
+  ScopedConfigFile config("ps1emu_tests_otc.conf");
+  CHECK(write_test_config(config.path));
+
+  ScopedCore scoped;
+  CHECK(scoped.core.initialize(config.path));
+  scoped.active = true;
+
+  auto &mmio = ps1emu::EmulatorCoreTestAccess::mmio(scoped.core);
+  auto &memory = ps1emu::EmulatorCoreTestAccess::memory(scoped.core);
+
+  uint32_t dicr = (1u << 23) | (1u << (16 + 6));
+  mmio.write32(0x1F8010F4, dicr);
+
+  uint32_t base = 0x00001000;
+  mmio.write32(0x1F801080 + 0x10 * 6 + 0x0, base);
+  mmio.write32(0x1F801080 + 0x10 * 6 + 0x4, 4);
+  mmio.write32(0x1F801080 + 0x10 * 6 + 0x8, (1u << 24));
+
+  ps1emu::EmulatorCoreTestAccess::process_dma(scoped.core);
+
+  CHECK(memory.read32(base) == 0x00000FFCu);
+  CHECK(memory.read32(base - 4) == 0x00000FF8u);
+  CHECK(memory.read32(base - 8) == 0x00000FF4u);
+  CHECK(memory.read32(base - 12) == 0x00FFFFFFu);
+  return true;
+}
+
 int main() {
   setenv("PS1EMU_HEADLESS", "1", 1);
 
@@ -1677,6 +1746,7 @@ int main() {
       {"cache_isolated_store_ignored", test_cache_isolated_store_ignored},
       {"branch_delay", test_branch_delay},
       {"cpu_exception_trace", test_cpu_exception_trace},
+      {"cpu_exception_sr_shift", test_cpu_exception_sr_shift},
       {"branch_likely_not_taken", test_branch_likely_not_taken},
       {"branch_likely_taken", test_branch_likely_taken},
       {"mmio_gpu_fifo", test_mmio_gpu_fifo},
@@ -1700,6 +1770,7 @@ int main() {
       {"gte_command_cycles", test_gte_command_cycles},
       {"gte_lwc2_delay", test_gte_lwc2_delay},
       {"dma_irq", test_dma_irq},
+      {"dma_dicr_clears_irq", test_dma_dicr_clears_irq},
       {"timer_irq_on_target", test_timer_irq_on_target},
       {"gpu_packet_parsing", test_gpu_packet_parsing},
       {"gpu_packet_parsing_edges", test_gpu_packet_parsing_edges},
@@ -1726,6 +1797,7 @@ int main() {
       {"dma_decrement_and_blocks", test_dma_decrement_and_blocks},
       {"dma_bcr_zero", test_dma_bcr_zero},
       {"cdrom_dma_transfer", test_cdrom_dma_transfer},
+      {"dma_otc_clear", test_dma_otc_clear},
   };
 
   int passed = 0;

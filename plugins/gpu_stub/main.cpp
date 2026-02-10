@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <fstream>
 #include <iomanip>
+#include <iostream>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -162,6 +163,15 @@ static bool write_frame(uint16_t type, const std::vector<uint8_t> &payload) {
     return true;
   }
   return write_all(STDOUT_FILENO, payload.data(), payload.size());
+}
+
+static bool gpu_log_enabled() {
+  static int cached = -1;
+  if (cached < 0) {
+    const char *env = getenv("PS1EMU_LOG_GPU");
+    cached = (env && env[0] != '\0' && env[0] != '0') ? 1 : 0;
+  }
+  return cached == 1;
 }
 
 static uint16_t color24_to_15(uint32_t color) {
@@ -1474,6 +1484,9 @@ int main() {
     uint16_t type = 0;
     std::vector<uint8_t> payload;
     if (!read_frame(type, payload)) {
+      if (gpu_log_enabled()) {
+        std::cerr << "[gpu] read_frame failed\n";
+      }
       break;
     }
     if (type == 0x0001) {
@@ -1525,6 +1538,10 @@ int main() {
         write_frame(0x0005, {});
       }
       continue;
+    }
+    if (gpu_log_enabled()) {
+      std::cerr << "[gpu] unknown frame type 0x" << std::hex << std::setw(4) << std::setfill('0')
+                << type << " len=" << std::dec << payload.size() << "\n";
     }
     write_frame(0x0002, {});
   }

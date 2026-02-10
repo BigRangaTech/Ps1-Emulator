@@ -200,6 +200,8 @@ void CpuCore::raise_exception(uint32_t excode,
     state_.cop0.epc = instr_pc;
   }
   state_.cop0.badvaddr = badaddr;
+  uint32_t mode = state_.cop0.sr & 0x3Fu;
+  state_.cop0.sr = (state_.cop0.sr & ~0x3Fu) | ((mode << 2) & 0x3Fu);
   state_.cop0.sr |= (1u << 1);
   state_.cop0.sr &= ~(1u << 0);
   if (in_delay) {

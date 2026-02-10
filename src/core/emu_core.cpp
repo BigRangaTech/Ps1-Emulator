@@ -184,6 +184,20 @@ void EmulatorCore::set_watchdog_stall_cycles(uint32_t cycles) {
   watchdog_stall_cycles_ = std::max<uint32_t>(cycles, 1);
 }
 
+void EmulatorCore::dump_memory_words(uint32_t addr, uint32_t words) const {
+  if (words == 0) {
+    return;
+  }
+  std::ostringstream oss;
+  oss << std::hex << std::setfill('0');
+  for (uint32_t i = 0; i < words; ++i) {
+    uint32_t a = addr + i * 4u;
+    uint32_t value = memory_.read32(a);
+    oss << "0x" << std::setw(8) << a << ": 0x" << std::setw(8) << value << "\n";
+  }
+  std::cout << oss.str();
+}
+
 void EmulatorCore::log_trace_state(const char *label) {
   std::ostringstream oss;
   const auto &st = cpu_.state();
@@ -554,6 +568,22 @@ void EmulatorCore::process_dma() {
     }
 
     mmio_.set_dma_madr(channel, madr + total_words * 4);
+  } else if (channel == 6) { // OTC: clear ordering table
+    uint32_t madr = mmio_.dma_madr(channel) & 0x1FFFFC;
+    uint32_t bcr = mmio_.dma_bcr(channel);
+    uint32_t count = bcr & 0xFFFFu;
+    if (count == 0) {
+      count = 0x10000u;
+    }
+
+    uint32_t addr = madr;
+    for (uint32_t i = 0; i < count; ++i) {
+      uint32_t value = (i + 1 == count) ? 0x00FFFFFFu : ((addr - 4) & 0x00FFFFFFu);
+      memory_.write32(addr, value);
+      addr = (addr - 4) & 0x1FFFFC;
+    }
+
+    mmio_.set_dma_madr(channel, addr);
   }
 }
 

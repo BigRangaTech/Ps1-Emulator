@@ -186,8 +186,8 @@ CMakeFiles/ps1emu_gpu_stub.dir/plugins/gpu_stub/main.cpp.o: \
  /usr/include/libintl.h /usr/include/c++/15/bits/locale_facets_nonio.tcc \
  /usr/include/c++/15/bits/locale_conv.h \
  /usr/include/c++/15/bits/quoted_string.h /usr/include/c++/15/sstream \
- /usr/include/c++/15/bits/sstream.tcc /usr/include/c++/15/vector \
- /usr/include/c++/15/bits/stl_uninitialized.h \
+ /usr/include/c++/15/bits/sstream.tcc /usr/include/c++/15/iostream \
+ /usr/include/c++/15/vector /usr/include/c++/15/bits/stl_uninitialized.h \
  /usr/include/c++/15/bits/stl_vector.h \
  /usr/include/c++/15/bits/stl_bvector.h \
  /usr/include/c++/15/bits/vector.tcc \

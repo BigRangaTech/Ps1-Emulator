@@ -7,6 +7,7 @@
 static void print_usage() {
   std::cout << "Usage: ps1emu [--config path] [--cycles N] [--frames N] [--trace]\n";
   std::cout << "             [--trace-period N] [--watchdog] [--dump-dynarec]\n";
+  std::cout << "             [--dump-ram addr words]\n";
 }
 
 int main(int argc, char **argv) {
@@ -18,6 +19,9 @@ int main(int argc, char **argv) {
   bool trace_enabled = false;
   bool watchdog_enabled = false;
   uint32_t trace_period = 1000000;
+  bool dump_ram = false;
+  uint32_t dump_ram_addr = 0;
+  uint32_t dump_ram_words = 0;
   for (int i = 1; i < argc; ++i) {
     std::string arg = argv[i];
     if (arg == "--help" || arg == "-h") {
@@ -52,6 +56,12 @@ int main(int argc, char **argv) {
       watchdog_enabled = true;
       continue;
     }
+    if (arg == "--dump-ram" && i + 2 < argc) {
+      dump_ram_addr = static_cast<uint32_t>(std::stoul(argv[++i], nullptr, 0));
+      dump_ram_words = static_cast<uint32_t>(std::stoul(argv[++i], nullptr, 0));
+      dump_ram = true;
+      continue;
+    }
     if (arg == "--dump-dynarec") {
       dump_dynarec = true;
       continue;
@@ -83,6 +93,9 @@ int main(int argc, char **argv) {
     if (dump_dynarec) {
       core.dump_dynarec_profile();
     }
+  }
+  if (dump_ram) {
+    core.dump_memory_words(dump_ram_addr, dump_ram_words);
   }
   core.shutdown();
   return 0;

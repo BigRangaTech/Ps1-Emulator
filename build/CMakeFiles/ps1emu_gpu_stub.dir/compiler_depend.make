@@ -160,6 +160,7 @@ CMakeFiles/ps1emu_gpu_stub.dir/plugins/gpu_stub/main.cpp.o: /home/jessie/Documen
   /usr/include/c++/15/iomanip \
   /usr/include/c++/15/ios \
   /usr/include/c++/15/iosfwd \
+  /usr/include/c++/15/iostream \
   /usr/include/c++/15/istream \
   /usr/include/c++/15/limits \
   /usr/include/c++/15/locale \
@@ -926,9 +927,7 @@ CMakeFiles/ps1emu_gpu_stub.dir/plugins/gpu_stub/main.cpp.o:
 
 /usr/lib/i386-linux-gnu/libXau.so.6:
 
-/usr/include/x86_64-linux-gnu/bits/getopt_posix.h:
-
-/lib/x86_64-linux-gnu/libXext.so.6:
+/usr/lib/i386-linux-gnu/libX11.so.6:
 
 /usr/include/x86_64-linux-gnu/bits/sched.h:
 
@@ -969,6 +968,10 @@ CMakeFiles/ps1emu_gpu_stub.dir/plugins/gpu_stub/main.cpp.o:
 /usr/include/unistd.h:
 
 /usr/include/x86_64-linux-gnu/bits/statx.h:
+
+/usr/include/x86_64-linux-gnu/bits/getopt_posix.h:
+
+/lib/x86_64-linux-gnu/libXext.so.6:
 
 /usr/include/strings.h:
 
@@ -1046,6 +1049,12 @@ CMakeFiles/ps1emu_gpu_stub.dir/plugins/gpu_stub/main.cpp.o:
 
 /usr/include/c++/15/locale:
 
+/usr/include/c++/15/iostream:
+
+/usr/include/c++/15/bits/vector.tcc:
+
+/lib/x86_64-linux-gnu/libxkbcommon.so.0:
+
 /usr/include/c++/15/limits:
 
 /usr/include/c++/15/iosfwd:
@@ -1087,10 +1096,6 @@ CMakeFiles/ps1emu_gpu_stub.dir/plugins/gpu_stub/main.cpp.o:
 /usr/include/c++/15/cerrno:
 
 /lib/i386-linux-gnu/libXrender.so.1:
-
-/usr/include/c++/15/bits/vector.tcc:
-
-/lib/x86_64-linux-gnu/libxkbcommon.so.0:
 
 /usr/include/c++/15/bits/utility.h:
 
@@ -1521,8 +1526,6 @@ CMakeFiles/ps1emu_gpu_stub.dir/plugins/gpu_stub/main.cpp.o:
 /usr/include/c++/15/bits/refwrap.h:
 
 /usr/include/x86_64-linux-gnu/bits/atomic_wide_counter.h:
-
-/usr/lib/i386-linux-gnu/libX11.so.6:
 
 /usr/include/SDL2/SDL_main.h:
 

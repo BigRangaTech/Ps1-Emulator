@@ -33,6 +33,7 @@ public:
   void set_watchdog_enabled(bool enabled);
   void set_watchdog_sample_cycles(uint32_t cycles);
   void set_watchdog_stall_cycles(uint32_t cycles);
+  void dump_memory_words(uint32_t addr, uint32_t words) const;
 
 private:
   friend struct EmulatorCoreTestAccess;
