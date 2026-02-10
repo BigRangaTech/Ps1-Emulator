@@ -52,8 +52,10 @@
 - 24-bit mode reduces effective horizontal resolution (approx. 2/3 scaling).
 - GPUSTAT ready/busy bits are approximated using FIFO occupancy and a simple busy-cycle counter.
 - GPUSTAT DMA request bit reflects the configured DMA direction and data availability.
-- Interlace field toggling is approximate (CPU-cycle based) and will need calibration later.
+- Interlace field toggling is approximate (CPU-cycle based, half-frame cadence) and will need calibration later.
 - VRAM readback is scheduled with a small delay to model transfer latency.
 - DMA channel 2 supports GPU->CPU transfers by streaming GPUREAD words into RAM.
 - GP0/GP1 writes add small busy penalties, especially if the FIFO grows large.
 - VRAM image transfers respect mask bit settings (write mask + mask test).
+- DMA channel 2 supports linked-list mode (GP0 command chains).
+- GPU DMA packets are queued and drained based on GPUSTAT ready/busy to simulate backpressure.

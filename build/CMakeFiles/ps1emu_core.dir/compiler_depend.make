@@ -1701,6 +1701,7 @@ CMakeFiles/ps1emu_core.dir/src/core/emu_core.cpp.o: /home/jessie/Documents/Ps1-E
   /usr/include/c++/15/bits/cpp_type_traits.h \
   /usr/include/c++/15/bits/cxxabi_forced.h \
   /usr/include/c++/15/bits/cxxabi_init_exception.h \
+  /usr/include/c++/15/bits/deque.tcc \
   /usr/include/c++/15/bits/enable_special_members.h \
   /usr/include/c++/15/bits/erase_if.h \
   /usr/include/c++/15/bits/exception.h \
@@ -1743,6 +1744,7 @@ CMakeFiles/ps1emu_core.dir/src/core/emu_core.cpp.o: /home/jessie/Documents/Ps1-E
   /usr/include/c++/15/bits/stl_algobase.h \
   /usr/include/c++/15/bits/stl_bvector.h \
   /usr/include/c++/15/bits/stl_construct.h \
+  /usr/include/c++/15/bits/stl_deque.h \
   /usr/include/c++/15/bits/stl_function.h \
   /usr/include/c++/15/bits/stl_heap.h \
   /usr/include/c++/15/bits/stl_iterator.h \
@@ -1778,6 +1780,7 @@ CMakeFiles/ps1emu_core.dir/src/core/emu_core.cpp.o: /home/jessie/Documents/Ps1-E
   /usr/include/c++/15/cwctype \
   /usr/include/c++/15/debug/assertions.h \
   /usr/include/c++/15/debug/debug.h \
+  /usr/include/c++/15/deque \
   /usr/include/c++/15/exception \
   /usr/include/c++/15/ext/aligned_buffer.h \
   /usr/include/c++/15/ext/alloc_traits.h \
@@ -3283,6 +3286,8 @@ CMakeFiles/ps1emu_core.dir/src/plugins/plugin_host.cpp.o: /home/jessie/Documents
 
 /home/jessie/Documents/Ps1-Emulator/src/core/gpu_commands.cpp:
 
+/usr/include/c++/15/deque:
+
 /home/jessie/Documents/Ps1-Emulator/src/plugins/plugin_host.h:
 
 /home/jessie/Documents/Ps1-Emulator/src/core/gpu_packets.h:
@@ -3554,6 +3559,8 @@ CMakeFiles/ps1emu_core.dir/src/plugins/plugin_host.cpp.o: /home/jessie/Documents
 /home/jessie/Documents/Ps1-Emulator/src/core/mmio.h:
 
 /usr/include/c++/15/bits/basic_ios.tcc:
+
+/usr/include/c++/15/bits/stl_deque.h:
 
 /usr/include/x86_64-linux-gnu/bits/types/__FILE.h:
 
@@ -3910,5 +3917,7 @@ CMakeFiles/ps1emu_core.dir/src/plugins/plugin_host.cpp.o: /home/jessie/Documents
 /usr/include/c++/15/bits/exception_defines.h:
 
 /usr/include/c++/15/bits/stl_heap.h:
+
+/usr/include/c++/15/bits/deque.tcc:
 
 /usr/include/c++/15/bits/stl_tempbuf.h:

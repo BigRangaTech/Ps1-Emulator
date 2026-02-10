@@ -37,6 +37,9 @@ Use **Import BIOS** to copy a BIOS into the app data folder for Flatpak-safe acc
 Manifest: `flatpak/org.ps1emu.PS1Emu.yml`
 The manifest runs `ps1emu_gui_wrapper`, which creates a writable config under XDG config.
 
+## Testing
+See `docs/testing.md` for test guidance and GPU frame dump calibration.
+
 ## Config
 `ps1emu.conf` controls plugin paths, BIOS path, CPU mode, and sandbox limits.
 If `bios.path` is empty, a minimal HLE BIOS stub is used.

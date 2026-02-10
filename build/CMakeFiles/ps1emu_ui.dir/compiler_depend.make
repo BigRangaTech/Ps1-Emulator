@@ -47,6 +47,7 @@ CMakeFiles/ps1emu_ui.dir/src/ui/main.cpp.o: /home/jessie/Documents/Ps1-Emulator/
   /usr/include/c++/15/bits/cpp_type_traits.h \
   /usr/include/c++/15/bits/cxxabi_forced.h \
   /usr/include/c++/15/bits/cxxabi_init_exception.h \
+  /usr/include/c++/15/bits/deque.tcc \
   /usr/include/c++/15/bits/enable_special_members.h \
   /usr/include/c++/15/bits/erase_if.h \
   /usr/include/c++/15/bits/exception.h \
@@ -88,6 +89,7 @@ CMakeFiles/ps1emu_ui.dir/src/ui/main.cpp.o: /home/jessie/Documents/Ps1-Emulator/
   /usr/include/c++/15/bits/stl_algobase.h \
   /usr/include/c++/15/bits/stl_bvector.h \
   /usr/include/c++/15/bits/stl_construct.h \
+  /usr/include/c++/15/bits/stl_deque.h \
   /usr/include/c++/15/bits/stl_function.h \
   /usr/include/c++/15/bits/stl_iterator.h \
   /usr/include/c++/15/bits/stl_iterator_base_funcs.h \
@@ -121,6 +123,7 @@ CMakeFiles/ps1emu_ui.dir/src/ui/main.cpp.o: /home/jessie/Documents/Ps1-Emulator/
   /usr/include/c++/15/cwctype \
   /usr/include/c++/15/debug/assertions.h \
   /usr/include/c++/15/debug/debug.h \
+  /usr/include/c++/15/deque \
   /usr/include/c++/15/exception \
   /usr/include/c++/15/ext/aligned_buffer.h \
   /usr/include/c++/15/ext/alloc_traits.h \
@@ -305,6 +308,7 @@ CMakeFiles/ps1emu_ui.dir/src/ui/text_ui.cpp.o: /home/jessie/Documents/Ps1-Emulat
   /usr/include/c++/15/bits/cpp_type_traits.h \
   /usr/include/c++/15/bits/cxxabi_forced.h \
   /usr/include/c++/15/bits/cxxabi_init_exception.h \
+  /usr/include/c++/15/bits/deque.tcc \
   /usr/include/c++/15/bits/enable_special_members.h \
   /usr/include/c++/15/bits/erase_if.h \
   /usr/include/c++/15/bits/exception.h \
@@ -346,6 +350,7 @@ CMakeFiles/ps1emu_ui.dir/src/ui/text_ui.cpp.o: /home/jessie/Documents/Ps1-Emulat
   /usr/include/c++/15/bits/stl_algobase.h \
   /usr/include/c++/15/bits/stl_bvector.h \
   /usr/include/c++/15/bits/stl_construct.h \
+  /usr/include/c++/15/bits/stl_deque.h \
   /usr/include/c++/15/bits/stl_function.h \
   /usr/include/c++/15/bits/stl_iterator.h \
   /usr/include/c++/15/bits/stl_iterator_base_funcs.h \
@@ -379,6 +384,7 @@ CMakeFiles/ps1emu_ui.dir/src/ui/text_ui.cpp.o: /home/jessie/Documents/Ps1-Emulat
   /usr/include/c++/15/cwctype \
   /usr/include/c++/15/debug/assertions.h \
   /usr/include/c++/15/debug/debug.h \
+  /usr/include/c++/15/deque \
   /usr/include/c++/15/exception \
   /usr/include/c++/15/ext/aligned_buffer.h \
   /usr/include/c++/15/ext/alloc_traits.h \
@@ -557,7 +563,9 @@ CMakeFiles/ps1emu_ui.dir/src/ui/text_ui.cpp.o:
 
 /usr/lib/gcc/x86_64-linux-gnu/15/include/stdint.h:
 
-/usr/include/c++/15/ext/numeric_traits.h:
+/usr/lib/gcc/x86_64-linux-gnu/15/include/stdarg.h:
+
+/usr/include/x86_64-linux-gnu/sys/types.h:
 
 /usr/include/c++/15/ext/atomicity.h:
 
@@ -599,8 +607,6 @@ CMakeFiles/ps1emu_ui.dir/src/ui/main.cpp.o:
 
 /usr/include/x86_64-linux-gnu/bits/types/struct_timeval.h:
 
-/usr/include/c++/15/bits/stl_tempbuf.h:
-
 /usr/include/c++/15/bits/stl_raw_storage_iter.h:
 
 /usr/include/c++/15/bits/stl_algobase.h:
@@ -641,6 +647,8 @@ libps1emu_core.a:
 
 /usr/include/x86_64-linux-gnu/c++/15/bits/gthr.h:
 
+/usr/include/c++/15/deque:
+
 /usr/include/x86_64-linux-gnu/bits/types/time_t.h:
 
 /usr/include/c++/15/bits/stl_function.h:
@@ -671,11 +679,11 @@ libps1emu_core.a:
 
 /home/jessie/Documents/Ps1-Emulator/src/core/config_paths.h:
 
+/usr/include/c++/15/bits/alloc_traits.h:
+
 /usr/include/c++/15/bits/stringfwd.h:
 
 /usr/include/c++/15/bits/erase_if.h:
-
-/usr/include/c++/15/bits/alloc_traits.h:
 
 /usr/lib/x86_64-linux-gnu/libm.so:
 
@@ -730,8 +738,6 @@ libps1emu_core.a:
 /usr/include/alloca.h:
 
 /usr/include/c++/15/bits/charconv.h:
-
-/usr/include/x86_64-linux-gnu/sys/types.h:
 
 /usr/include/c++/15/cstdio:
 
@@ -809,15 +815,17 @@ libps1emu_core.a:
 
 /usr/include/x86_64-linux-gnu/bits/waitflags.h:
 
-/usr/include/c++/15/bits/exception_ptr.h:
-
-/usr/include/c++/15/ext/concurrence.h:
+/usr/include/c++/15/bits/stl_deque.h:
 
 /usr/include/x86_64-linux-gnu/bits/types/__FILE.h:
 
 /usr/include/c++/15/bits/postypes.h:
 
 /usr/include/x86_64-linux-gnu/asm/posix_types.h:
+
+/usr/include/c++/15/bits/ios_base.h:
+
+/usr/include/wchar.h:
 
 /usr/include/stdc-predef.h:
 
@@ -841,14 +849,6 @@ libps1emu_core.a:
 
 /usr/include/c++/15/streambuf:
 
-/usr/include/c++/15/bits/hashtable_policy.h:
-
-/usr/include/c++/15/ext/string_conversions.h:
-
-/usr/lib/gcc/x86_64-linux-gnu/15/crtendS.o:
-
-/usr/include/x86_64-linux-gnu/gnu/stubs-64.h:
-
 /usr/include/c++/15/bits/ostream.h:
 
 /usr/include/c++/15/fstream:
@@ -866,6 +866,10 @@ libps1emu_core.a:
 /usr/include/c++/15/compare:
 
 /usr/include/c++/15/bits/cxxabi_forced.h:
+
+/usr/include/c++/15/bits/stl_tempbuf.h:
+
+/usr/include/c++/15/bits/deque.tcc:
 
 /lib/x86_64-linux-gnu/libm.so.6:
 
@@ -893,9 +897,19 @@ libps1emu_core.a:
 
 /usr/include/x86_64-linux-gnu/c++/15/bits/c++config.h:
 
-/usr/include/c++/15/bits/ios_base.h:
+/usr/include/c++/15/bits/exception_ptr.h:
 
-/usr/include/wchar.h:
+/usr/include/c++/15/ext/concurrence.h:
+
+/usr/include/c++/15/ext/numeric_traits.h:
+
+/usr/include/c++/15/bits/hashtable_policy.h:
+
+/usr/include/c++/15/ext/string_conversions.h:
+
+/usr/lib/gcc/x86_64-linux-gnu/15/crtendS.o:
+
+/usr/include/x86_64-linux-gnu/gnu/stubs-64.h:
 
 /usr/include/c++/15/ios:
 
@@ -1092,5 +1106,3 @@ libps1emu_core.a:
 /usr/include/x86_64-linux-gnu/c++/15/bits/cpu_defines.h:
 
 /usr/include/x86_64-linux-gnu/c++/15/bits/error_constants.h:
-
-/usr/lib/gcc/x86_64-linux-gnu/15/include/stdarg.h:

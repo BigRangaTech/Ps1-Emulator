@@ -210,7 +210,9 @@ CMakeFiles/ps1emu_tests.dir/tests/emulator_tests.cpp.o: \
  /home/jessie/Documents/Ps1-Emulator/src/core/gpu_packets.h \
  /home/jessie/Documents/Ps1-Emulator/src/plugins/plugin_host.h \
  /home/jessie/Documents/Ps1-Emulator/src/plugins/ipc.h \
- /usr/include/c++/15/algorithm /usr/include/c++/15/bits/stl_algo.h \
+ /usr/include/c++/15/deque /usr/include/c++/15/bits/stl_deque.h \
+ /usr/include/c++/15/bits/deque.tcc /usr/include/c++/15/algorithm \
+ /usr/include/c++/15/bits/stl_algo.h \
  /usr/include/c++/15/bits/algorithmfwd.h \
  /usr/include/c++/15/bits/stl_heap.h \
  /usr/include/c++/15/bits/uniform_int_dist.h \

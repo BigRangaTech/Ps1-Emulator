@@ -61,6 +61,37 @@ bool CdromImage::loaded() const {
   return file_.is_open() && track_.sector_size > 0;
 }
 
+uint32_t CdromImage::sector_size() const {
+  return track_.sector_size;
+}
+
+uint32_t CdromImage::data_size() const {
+  return track_.data_size;
+}
+
+int32_t CdromImage::start_lba() const {
+  return track_.start_lba;
+}
+
+uint32_t CdromImage::total_sectors() const {
+  if (track_.sector_size == 0) {
+    return 0;
+  }
+  return static_cast<uint32_t>(file_size_ / track_.sector_size);
+}
+
+uint32_t CdromImage::end_lba() const {
+  uint32_t sectors = total_sectors();
+  if (sectors == 0) {
+    return 0;
+  }
+  int64_t end = static_cast<int64_t>(track_.start_lba) + static_cast<int64_t>(sectors - 1);
+  if (end < 0) {
+    return 0;
+  }
+  return static_cast<uint32_t>(end);
+}
+
 bool CdromImage::open_track_file(const std::string &path, std::string &error) {
   file_.close();
   file_.clear();

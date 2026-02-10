@@ -17,6 +17,7 @@ cmake --build build -j
 ## Key Docs
 - `docs/architecture.md`
 - `docs/plugin_protocol.md`
+- `docs/testing.md`
 
 ## Configuration
 - Default config: `ps1emu.conf`
@@ -40,6 +41,10 @@ cmake --build build -j
 - GPU: confirm 24-bit horizontal scaling and display range mapping with known test ROMs.
 - GPU: validate GP0/GP1 FIFO busy penalties vs real hardware stall behavior.
 - GPU: validate VRAM transfer mask behavior with hardware tests.
+- GPU: validate linked-list DMA behavior with real BIOS/ROM command chains.
+- GPU: validate interlace field cadence and display range interaction.
+- GPU: validate DMA backpressure draining behavior against real timing.
+- Tests: add coverage for each module as new features land (CPU/GPU/CD-ROM/SPU/Input).
 - CD-ROM: full command set, sector timing, XA audio stub, DMA pacing.
 - SPU: mixing + ADPCM decode, timing and IRQs.
 - Input: controller polling with mapping layer, hotplug.

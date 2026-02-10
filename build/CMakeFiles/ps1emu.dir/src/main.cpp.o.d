@@ -212,4 +212,5 @@ CMakeFiles/ps1emu.dir/src/main.cpp.o: \
  /home/jessie/Documents/Ps1-Emulator/src/core/gpu_packets.h \
  /home/jessie/Documents/Ps1-Emulator/src/plugins/plugin_host.h \
  /home/jessie/Documents/Ps1-Emulator/src/plugins/ipc.h \
- /usr/include/c++/15/iostream
+ /usr/include/c++/15/deque /usr/include/c++/15/bits/stl_deque.h \
+ /usr/include/c++/15/bits/deque.tcc /usr/include/c++/15/iostream

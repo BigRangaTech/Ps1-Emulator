@@ -29,8 +29,16 @@ void MmioBus::reset() {
   cdrom_irq_flags_ = 0;
   cdrom_irq_enable_ = 0;
   cdrom_mode_ = 0;
+  cdrom_filter_file_ = 0;
+  cdrom_filter_channel_ = 0;
+  cdrom_session_ = 1;
   cdrom_error_ = false;
   cdrom_reading_ = false;
+  cdrom_playing_ = false;
+  cdrom_muted_ = false;
+  cdrom_read_timer_ = 0;
+  cdrom_read_period_ = 0;
+  cdrom_last_read_lba_ = 0;
   cdrom_lba_ = 0;
   std::memset(timer_irq_enable_, 0, sizeof(timer_irq_enable_));
   std::memset(timer_irq_repeat_, 0, sizeof(timer_irq_repeat_));
@@ -187,6 +195,11 @@ static uint8_t bcd_to_int(uint8_t value) {
   return static_cast<uint8_t>(((value >> 4) & 0x0Fu) * 10 + (value & 0x0Fu));
 }
 
+static uint8_t int_to_bcd(uint32_t value) {
+  value %= 100;
+  return static_cast<uint8_t>(((value / 10) << 4) | (value % 10));
+}
+
 static uint32_t bcd_to_lba(uint8_t mm, uint8_t ss, uint8_t ff) {
   uint32_t m = bcd_to_int(mm);
   uint32_t s = bcd_to_int(ss);
@@ -198,6 +211,17 @@ static uint32_t bcd_to_lba(uint8_t mm, uint8_t ss, uint8_t ff) {
     lba = 0;
   }
   return lba;
+}
+
+static void lba_to_bcd(uint32_t lba, uint8_t &mm, uint8_t &ss, uint8_t &ff) {
+  uint32_t lba_adj = lba + 150;
+  uint32_t total_seconds = lba_adj / 75;
+  uint32_t frames = lba_adj % 75;
+  uint32_t minutes = total_seconds / 60;
+  uint32_t seconds = total_seconds % 60;
+  mm = int_to_bcd(minutes);
+  ss = int_to_bcd(seconds);
+  ff = int_to_bcd(frames);
 }
 
 static uint8_t cdrom_status_byte(bool has_disc,
@@ -244,6 +268,29 @@ void MmioBus::cdrom_raise_irq(uint8_t flags) {
 
 static bool cdrom_fill_data_fifo(CdromImage &image,
                                  uint32_t &lba,
+                                 uint32_t &last_lba,
+                                 bool &error,
+                                 std::vector<uint8_t> &fifo);
+
+void MmioBus::cdrom_maybe_fill_data() {
+  if (!cdrom_reading_ || cdrom_error_ || !cdrom_image_.loaded()) {
+    return;
+  }
+  if (!cdrom_data_fifo_.empty()) {
+    return;
+  }
+  if (cdrom_read_timer_ > 0) {
+    return;
+  }
+  if (cdrom_fill_data_fifo(cdrom_image_, cdrom_lba_, cdrom_last_read_lba_, cdrom_error_, cdrom_data_fifo_)) {
+    cdrom_read_timer_ = cdrom_read_period_;
+    cdrom_raise_irq(0x02);
+  }
+}
+
+static bool cdrom_fill_data_fifo(CdromImage &image,
+                                 uint32_t &lba,
+                                 uint32_t &last_lba,
                                  bool &error,
                                  std::vector<uint8_t> &fifo) {
   std::vector<uint8_t> sector;
@@ -252,8 +299,20 @@ static bool cdrom_fill_data_fifo(CdromImage &image,
     return false;
   }
   fifo = std::move(sector);
+  last_lba = lba;
   lba += 1;
   return true;
+}
+
+static uint32_t cdrom_read_period_cycles(uint8_t mode) {
+  constexpr uint32_t kCpuHz = 33868800;
+  constexpr uint32_t kSectorsPerSec = 75;
+  uint32_t base = kCpuHz / kSectorsPerSec;
+  bool double_speed = (mode & 0x80u) != 0;
+  if (double_speed) {
+    base = std::max(1u, base / 2);
+  }
+  return base;
 }
 
 void MmioBus::cdrom_execute_command(uint8_t cmd) {
@@ -792,14 +851,16 @@ void MmioBus::tick(uint32_t cycles) {
   if (period == 0) {
     period = kCpuCyclesPerFrameNtsc;
   }
-  if (gpu_field_cycle_accum_ >= period) {
+  uint32_t field_period = gpu_interlace_ ? std::max(1u, period / 2) : period;
+  if (gpu_field_cycle_accum_ >= field_period) {
     if (gpu_interlace_) {
-      while (gpu_field_cycle_accum_ >= period) {
-        gpu_field_cycle_accum_ -= period;
+      while (gpu_field_cycle_accum_ >= field_period) {
+        gpu_field_cycle_accum_ -= field_period;
         gpu_field_ = !gpu_field_;
       }
     } else {
-      gpu_field_cycle_accum_ %= period;
+      gpu_field_cycle_accum_ %= field_period;
+      gpu_field_ = false;
     }
   }
 
@@ -999,6 +1060,10 @@ void MmioBus::gpu_add_busy(uint32_t cycles) {
     return;
   }
   gpu_busy_cycles_ = std::min<uint32_t>(gpu_busy_cycles_ + cycles, 100000);
+}
+
+bool MmioBus::gpu_ready_for_commands() const {
+  return (compute_gpustat() & (1u << 26)) != 0;
 }
 
 uint32_t MmioBus::gpu_dma_dir() const {

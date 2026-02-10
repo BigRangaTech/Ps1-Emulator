@@ -5,8 +5,13 @@
 #include <unistd.h>
 
 #include <algorithm>
+#include <fstream>
+#include <iomanip>
+#include <sstream>
 #include <string>
 #include <vector>
+
+#include <sys/stat.h>
 
 #ifdef PS1EMU_GPU_SDL
 #include <SDL2/SDL.h>
@@ -46,6 +51,42 @@ static bool read_exact(int fd, void *data, size_t size) {
     read_total += static_cast<size_t>(rc);
   }
   return true;
+}
+
+static bool ensure_dir(const std::string &path) {
+  if (path.empty()) {
+    return false;
+  }
+  if (mkdir(path.c_str(), 0755) == 0) {
+    return true;
+  }
+  return errno == EEXIST;
+}
+
+static bool write_ppm(const std::string &path,
+                      const std::vector<uint32_t> &frame,
+                      int width,
+                      int height) {
+  if (frame.empty() || width <= 0 || height <= 0) {
+    return false;
+  }
+  size_t expected = static_cast<size_t>(width) * height;
+  size_t count = std::min(frame.size(), expected);
+  std::ofstream file(path, std::ios::binary);
+  if (!file.is_open()) {
+    return false;
+  }
+  file << "P6\n" << width << " " << height << "\n255\n";
+  for (size_t i = 0; i < count; ++i) {
+    uint32_t argb = frame[i];
+    char rgb[3] = {
+        static_cast<char>((argb >> 16) & 0xFFu),
+        static_cast<char>((argb >> 8) & 0xFFu),
+        static_cast<char>(argb & 0xFFu),
+    };
+    file.write(rgb, sizeof(rgb));
+  }
+  return file.good();
 }
 
 static bool read_line_fd(std::string &out) {
@@ -157,6 +198,15 @@ public:
   }
 
   void set_headless(bool headless) { headless_ = headless; }
+  void set_frame_dump(const std::string &dir, int every) {
+    dump_dir_ = dir;
+    dump_every_ = std::max(1, every);
+    dump_counter_ = 0;
+    dump_frames_ = !dump_dir_.empty();
+    if (dump_frames_) {
+      ensure_dir(dump_dir_);
+    }
+  }
 
   bool init_display() {
 #ifdef PS1EMU_GPU_SDL
@@ -357,15 +407,30 @@ public:
   }
 
   void present() {
+    bool want_dump = dump_frames_;
+    bool want_output = false;
 #ifdef PS1EMU_GPU_SDL
-    if (headless_ || !texture_ || !renderer_) {
+    want_output = !headless_ && texture_ && renderer_;
+#endif
+    if (!want_dump && !want_output) {
       return;
     }
 
     if (!display_enabled_) {
-      SDL_SetRenderDrawColor(renderer_, 0, 0, 0, 255);
-      SDL_RenderClear(renderer_);
-      SDL_RenderPresent(renderer_);
+      std::fill(frame_.begin(), frame_.end(), 0xFF000000u);
+#ifdef PS1EMU_GPU_SDL
+      if (want_output) {
+        SDL_SetRenderDrawColor(renderer_, 0, 0, 0, 255);
+        SDL_RenderClear(renderer_);
+        SDL_RenderPresent(renderer_);
+      }
+#endif
+      if (want_dump) {
+        dump_frame();
+      }
+      if (interlaced_) {
+        field_parity_ = !field_parity_;
+      }
       return;
     }
 
@@ -397,18 +462,24 @@ public:
       }
     }
 
-    SDL_UpdateTexture(texture_, nullptr, frame_.data(), display_width_ * 4);
-    SDL_RenderClear(renderer_);
-    SDL_RenderCopy(renderer_, texture_, nullptr, nullptr);
-    SDL_RenderPresent(renderer_);
+#ifdef PS1EMU_GPU_SDL
+    if (want_output) {
+      SDL_UpdateTexture(texture_, nullptr, frame_.data(), display_width_ * 4);
+      SDL_RenderClear(renderer_);
+      SDL_RenderCopy(renderer_, texture_, nullptr, nullptr);
+      SDL_RenderPresent(renderer_);
 
-    SDL_Event evt;
-    while (SDL_PollEvent(&evt)) {
-      if (evt.type == SDL_QUIT) {
-        running_ = false;
+      SDL_Event evt;
+      while (SDL_PollEvent(&evt)) {
+        if (evt.type == SDL_QUIT) {
+          running_ = false;
+        }
       }
     }
 #endif
+    if (want_dump) {
+      dump_frame();
+    }
     if (interlaced_) {
       field_parity_ = !field_parity_;
     }
@@ -570,6 +641,30 @@ private:
     }
     w = std::min(w, kVramWidth);
     h = std::min(h, kVramHeight);
+    bool overlap = !(dst_x + w <= src_x || dst_x >= src_x + w ||
+                     dst_y + h <= src_y || dst_y >= src_y + h);
+    if (overlap) {
+      std::vector<uint16_t> temp(static_cast<size_t>(w) * h, 0);
+      for (int y = 0; y < h; ++y) {
+        for (int x = 0; x < w; ++x) {
+          int sx = src_x + x;
+          int sy = src_y + y;
+          if (!in_vram(sx, sy)) {
+            continue;
+          }
+          temp[static_cast<size_t>(y) * w + x] =
+              vram_[static_cast<size_t>(sy) * kVramWidth + sx];
+        }
+      }
+      for (int y = 0; y < h; ++y) {
+        for (int x = 0; x < w; ++x) {
+          int dx = dst_x + x;
+          int dy = dst_y + y;
+          write_vram_pixel(dx, dy, temp[static_cast<size_t>(y) * w + x]);
+        }
+      }
+      return;
+    }
     for (int y = 0; y < h; ++y) {
       for (int x = 0; x < w; ++x) {
         int sx = src_x + x;
@@ -1145,6 +1240,22 @@ private:
     vram_[idx] = out;
   }
 
+  void dump_frame() {
+    if (!dump_frames_ || dump_dir_.empty() || frame_.empty()) {
+      return;
+    }
+    dump_counter_++;
+    if (dump_counter_ < dump_every_) {
+      return;
+    }
+    dump_counter_ = 0;
+    std::ostringstream path;
+    path << dump_dir_ << "/frame_"
+         << std::setw(6) << std::setfill('0') << dump_index_++
+         << ".ppm";
+    write_ppm(path.str(), frame_, display_width_, display_height_);
+  }
+
   uint8_t vram_byte(int byte_x, int y) const {
     if (byte_x < 0 || byte_x >= kVramWidth * 2 || y < 0 || y >= kVramHeight) {
       return 0;
@@ -1305,14 +1416,29 @@ private:
   int mode_width_ = 320;
   int mode_height_ = 240;
   int scale_ = 2;
+
+  bool dump_frames_ = false;
+  int dump_every_ = 1;
+  int dump_counter_ = 0;
+  uint64_t dump_index_ = 0;
+  std::string dump_dir_;
 };
 
 int main() {
   const char *headless_env = getenv("PS1EMU_HEADLESS");
   bool headless = headless_env && headless_env[0] != '\0';
+  const char *dump_dir_env = getenv("PS1EMU_FRAME_DUMP_DIR");
+  const char *dump_every_env = getenv("PS1EMU_FRAME_DUMP_EVERY");
+  int dump_every = 1;
+  if (dump_every_env && dump_every_env[0] != '\0') {
+    dump_every = std::max(1, atoi(dump_every_env));
+  }
 
   SoftwareGpu gpu;
   gpu.set_headless(headless);
+  if (dump_dir_env && dump_dir_env[0] != '\0') {
+    gpu.set_frame_dump(dump_dir_env, dump_every);
+  }
   gpu.init_display();
 
   std::string line;

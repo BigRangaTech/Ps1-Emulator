@@ -34,6 +34,7 @@ public:
   void queue_gpu_read_data(std::vector<uint32_t> words);
   void schedule_gpu_read_data(std::vector<uint32_t> words, uint32_t delay_cycles);
   void gpu_add_busy(uint32_t cycles);
+  bool gpu_ready_for_commands() const;
   uint32_t gpu_dma_dir() const;
   uint32_t gpu_read_word();
   uint32_t consume_dma_channel();
@@ -54,6 +55,7 @@ private:
   void cdrom_push_response(uint8_t value);
   void cdrom_raise_irq(uint8_t flags);
   void cdrom_execute_command(uint8_t cmd);
+  void cdrom_maybe_fill_data();
 
   std::array<uint8_t, kSize> raw_ {};
 
@@ -122,8 +124,16 @@ private:
   uint8_t cdrom_irq_flags_ = 0;
   uint8_t cdrom_irq_enable_ = 0;
   uint8_t cdrom_mode_ = 0;
+  uint8_t cdrom_filter_file_ = 0;
+  uint8_t cdrom_filter_channel_ = 0;
+  uint8_t cdrom_session_ = 1;
   bool cdrom_error_ = false;
   bool cdrom_reading_ = false;
+  bool cdrom_playing_ = false;
+  bool cdrom_muted_ = false;
+  uint32_t cdrom_read_timer_ = 0;
+  uint32_t cdrom_read_period_ = 0;
+  uint32_t cdrom_last_read_lba_ = 0;
   uint32_t cdrom_lba_ = 0;
 
   bool timer_irq_enable_[3] = {};

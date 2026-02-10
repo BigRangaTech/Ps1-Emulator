@@ -11,6 +11,7 @@
 #include "plugins/plugin_host.h"
 
 #include <cstdint>
+#include <deque>
 #include <vector>
 
 namespace ps1emu {
@@ -31,6 +32,7 @@ private:
   void flush_gpu_commands();
   void flush_gpu_control();
   void process_dma();
+  void flush_gpu_dma_pending();
   bool send_gpu_packet(const GpuPacket &packet);
   bool request_vram_read(uint16_t x, uint16_t y, uint16_t w, uint16_t h);
 
@@ -45,6 +47,7 @@ private:
   Scheduler scheduler_;
   CpuCore cpu_;
   std::vector<uint32_t> gpu_dma_remainder_;
+  std::deque<GpuPacket> gpu_dma_pending_packets_;
 };
 
 } // namespace ps1emu

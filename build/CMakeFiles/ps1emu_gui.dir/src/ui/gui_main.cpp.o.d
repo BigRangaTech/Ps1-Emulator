@@ -213,8 +213,10 @@ CMakeFiles/ps1emu_gui.dir/src/ui/gui_main.cpp.o: \
  /home/jessie/Documents/Ps1-Emulator/src/core/gpu_packets.h \
  /home/jessie/Documents/Ps1-Emulator/src/plugins/plugin_host.h \
  /home/jessie/Documents/Ps1-Emulator/src/plugins/ipc.h \
- /usr/include/SDL2/SDL.h /usr/include/SDL2/SDL_main.h \
- /usr/include/SDL2/SDL_stdinc.h /usr/include/SDL2/SDL_config.h \
+ /usr/include/c++/15/deque /usr/include/c++/15/bits/stl_deque.h \
+ /usr/include/c++/15/bits/deque.tcc /usr/include/SDL2/SDL.h \
+ /usr/include/SDL2/SDL_main.h /usr/include/SDL2/SDL_stdinc.h \
+ /usr/include/SDL2/SDL_config.h \
  /usr/include/x86_64-linux-gnu/SDL2/_real_SDL_config.h \
  /usr/include/SDL2/SDL_platform.h /usr/include/SDL2/begin_code.h \
  /usr/include/SDL2/close_code.h /usr/include/c++/15/stdlib.h \

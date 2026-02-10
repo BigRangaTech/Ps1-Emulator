@@ -52,6 +52,7 @@ void EmulatorCore::run_for_cycles(uint32_t cycles) {
     uint32_t step_cycles = cpu_.step();
     mmio_.tick(step_cycles);
     process_dma();
+    flush_gpu_dma_pending();
     flush_gpu_commands();
     flush_gpu_control();
   }
@@ -168,6 +169,36 @@ void EmulatorCore::flush_gpu_commands() {
   }
 }
 
+void EmulatorCore::flush_gpu_dma_pending() {
+  if (gpu_dma_pending_packets_.empty()) {
+    return;
+  }
+  constexpr size_t kMaxPacketsPerTick = 32;
+  size_t sent = 0;
+  while (!gpu_dma_pending_packets_.empty() && sent < kMaxPacketsPerTick) {
+    if (!mmio_.gpu_ready_for_commands()) {
+      break;
+    }
+    const auto &packet = gpu_dma_pending_packets_.front();
+    if (!packet.words.empty()) {
+      mmio_.apply_gp0_state(packet.words[0]);
+    }
+    if (packet.command == 0xC0 && packet.words.size() >= 3) {
+      uint16_t x = static_cast<uint16_t>(packet.words[1] & 0xFFFFu);
+      uint16_t y = static_cast<uint16_t>((packet.words[1] >> 16) & 0xFFFFu);
+      uint16_t w = static_cast<uint16_t>(packet.words[2] & 0xFFFFu);
+      uint16_t h = static_cast<uint16_t>((packet.words[2] >> 16) & 0xFFFFu);
+      if (!request_vram_read(x, y, w, h)) {
+        break;
+      }
+    } else if (!send_gpu_packet(packet)) {
+      break;
+    }
+    gpu_dma_pending_packets_.pop_front();
+    sent++;
+  }
+}
+
 void EmulatorCore::flush_gpu_control() {
   if (!mmio_.has_gpu_control()) {
     return;
@@ -220,6 +251,57 @@ void EmulatorCore::process_dma() {
       total_words = 1;
     }
     bool decrement = (chcr & (1u << 1)) != 0;
+    uint32_t sync_mode = (chcr >> 8) & 0x3u;
+
+    if (sync_mode == 2) { // linked list
+      std::vector<uint32_t> words;
+      size_t block_words = 0;
+      size_t blocks = 0;
+      uint32_t addr = madr;
+      bool end = false;
+      while (!end && blocks < 1024) {
+        uint32_t header = memory_.read32(addr);
+        uint32_t count = header >> 24;
+        uint32_t next = header & 0x00FFFFFFu;
+        addr = (addr + 4) & 0x1FFFFC;
+        for (uint32_t i = 0; i < count; ++i) {
+          words.push_back(memory_.read32(addr));
+          addr = (addr + 4) & 0x1FFFFC;
+        }
+        block_words += count;
+        blocks++;
+        if (next & 0x800000u) {
+          end = true;
+        } else {
+          addr = next & 0x1FFFFC;
+        }
+      }
+
+      mmio_.set_dma_madr(channel, addr);
+      uint64_t dma_busy = static_cast<uint64_t>(block_words) * 2;
+      dma_busy += static_cast<uint64_t>(blocks) * 8;
+      mmio_.gpu_add_busy(static_cast<uint32_t>(std::min<uint64_t>(dma_busy, 100000)));
+
+      if (!words.empty() || !gpu_dma_remainder_.empty()) {
+        std::vector<uint32_t> merged;
+        merged.reserve(words.size() + gpu_dma_remainder_.size());
+        if (!gpu_dma_remainder_.empty()) {
+          merged.insert(merged.end(), gpu_dma_remainder_.begin(), gpu_dma_remainder_.end());
+          gpu_dma_remainder_.clear();
+        }
+        merged.insert(merged.end(), words.begin(), words.end());
+        std::vector<uint32_t> remainder;
+        std::vector<GpuPacket> packets = parse_gp0_packets(merged, remainder);
+        if (!remainder.empty()) {
+          gpu_dma_remainder_ = std::move(remainder);
+        }
+        for (auto &packet : packets) {
+          gpu_dma_pending_packets_.push_back(std::move(packet));
+        }
+        flush_gpu_dma_pending();
+      }
+      return;
+    }
 
     uint64_t dma_busy = static_cast<uint64_t>(total_words) * 2;
     dma_busy += static_cast<uint64_t>(block_count ? block_count : 1) * 8;
@@ -264,24 +346,10 @@ void EmulatorCore::process_dma() {
       gpu_dma_remainder_ = std::move(remainder);
     }
 
-    for (const auto &packet : packets) {
-      if (!packet.words.empty()) {
-        mmio_.apply_gp0_state(packet.words[0]);
-      }
-      if (packet.command == 0xC0 && packet.words.size() >= 3) {
-        uint16_t x = static_cast<uint16_t>(packet.words[1] & 0xFFFFu);
-        uint16_t y = static_cast<uint16_t>((packet.words[1] >> 16) & 0xFFFFu);
-        uint16_t w = static_cast<uint16_t>(packet.words[2] & 0xFFFFu);
-        uint16_t h = static_cast<uint16_t>((packet.words[2] >> 16) & 0xFFFFu);
-        if (!request_vram_read(x, y, w, h)) {
-          break;
-        }
-        continue;
-      }
-      if (!send_gpu_packet(packet)) {
-        break;
-      }
+    for (auto &packet : packets) {
+      gpu_dma_pending_packets_.push_back(std::move(packet));
     }
+    flush_gpu_dma_pending();
   } else if (channel == 3) {
     uint32_t madr = mmio_.dma_madr(channel) & 0x1FFFFC;
     uint32_t bcr = mmio_.dma_bcr(channel);

@@ -102,6 +102,7 @@ CMakeFiles/ps1emu_gui.dir/src/ui/gui_app.cpp.o: /home/jessie/Documents/Ps1-Emula
   /usr/include/c++/15/bits/cpp_type_traits.h \
   /usr/include/c++/15/bits/cxxabi_forced.h \
   /usr/include/c++/15/bits/cxxabi_init_exception.h \
+  /usr/include/c++/15/bits/deque.tcc \
   /usr/include/c++/15/bits/enable_special_members.h \
   /usr/include/c++/15/bits/erase_if.h \
   /usr/include/c++/15/bits/exception.h \
@@ -155,6 +156,7 @@ CMakeFiles/ps1emu_gui.dir/src/ui/gui_app.cpp.o: /home/jessie/Documents/Ps1-Emula
   /usr/include/c++/15/bits/stl_algobase.h \
   /usr/include/c++/15/bits/stl_bvector.h \
   /usr/include/c++/15/bits/stl_construct.h \
+  /usr/include/c++/15/bits/stl_deque.h \
   /usr/include/c++/15/bits/stl_function.h \
   /usr/include/c++/15/bits/stl_heap.h \
   /usr/include/c++/15/bits/stl_iterator.h \
@@ -193,6 +195,7 @@ CMakeFiles/ps1emu_gui.dir/src/ui/gui_app.cpp.o: /home/jessie/Documents/Ps1-Emula
   /usr/include/c++/15/cwctype \
   /usr/include/c++/15/debug/assertions.h \
   /usr/include/c++/15/debug/debug.h \
+  /usr/include/c++/15/deque \
   /usr/include/c++/15/exception \
   /usr/include/c++/15/ext/aligned_buffer.h \
   /usr/include/c++/15/ext/alloc_traits.h \
@@ -583,6 +586,7 @@ CMakeFiles/ps1emu_gui.dir/src/ui/gui_main.cpp.o: /home/jessie/Documents/Ps1-Emul
   /usr/include/c++/15/bits/cpp_type_traits.h \
   /usr/include/c++/15/bits/cxxabi_forced.h \
   /usr/include/c++/15/bits/cxxabi_init_exception.h \
+  /usr/include/c++/15/bits/deque.tcc \
   /usr/include/c++/15/bits/enable_special_members.h \
   /usr/include/c++/15/bits/erase_if.h \
   /usr/include/c++/15/bits/exception.h \
@@ -635,6 +639,7 @@ CMakeFiles/ps1emu_gui.dir/src/ui/gui_main.cpp.o: /home/jessie/Documents/Ps1-Emul
   /usr/include/c++/15/bits/stl_algobase.h \
   /usr/include/c++/15/bits/stl_bvector.h \
   /usr/include/c++/15/bits/stl_construct.h \
+  /usr/include/c++/15/bits/stl_deque.h \
   /usr/include/c++/15/bits/stl_function.h \
   /usr/include/c++/15/bits/stl_iterator.h \
   /usr/include/c++/15/bits/stl_iterator_base_funcs.h \
@@ -671,6 +676,7 @@ CMakeFiles/ps1emu_gui.dir/src/ui/gui_main.cpp.o: /home/jessie/Documents/Ps1-Emul
   /usr/include/c++/15/cwctype \
   /usr/include/c++/15/debug/assertions.h \
   /usr/include/c++/15/debug/debug.h \
+  /usr/include/c++/15/deque \
   /usr/include/c++/15/exception \
   /usr/include/c++/15/ext/aligned_buffer.h \
   /usr/include/c++/15/ext/alloc_traits.h \
@@ -1485,8 +1491,6 @@ CMakeFiles/ps1emu_gui.dir/src/ui/gui_main.cpp.o:
 
 /usr/lib/gcc/x86_64-linux-gnu/15/libstdc++.so:
 
-/usr/lib/gcc/x86_64-linux-gnu/15/libgcc.a:
-
 /usr/lib/gcc/x86_64-linux-gnu/15/crtendS.o:
 
 /usr/lib/x86_64-linux-gnu/libm.so:
@@ -1494,10 +1498,6 @@ CMakeFiles/ps1emu_gui.dir/src/ui/gui_main.cpp.o:
 /usr/lib/x86_64-linux-gnu/libSDL2.so:
 
 /usr/lib/x86_64-linux-gnu/crti.o:
-
-/usr/lib/x86_64-linux-gnu/libc.so:
-
-/usr/lib/x86_64-linux-gnu/Scrt1.o:
 
 /lib/x86_64-linux-gnu/libxkbcommon.so.0:
 
@@ -1549,11 +1549,13 @@ CMakeFiles/ps1emu_gui.dir/src/ui/gui_main.cpp.o:
 
 /lib/x86_64-linux-gnu/libXrandr.so.2:
 
+/lib/x86_64-linux-gnu/libXext.so.6:
+
+/lib/x86_64-linux-gnu/libXdmcp.so.6:
+
+/lib/x86_64-linux-gnu/libXcursor.so.1:
+
 /usr/include/linux/stddef.h:
-
-/usr/include/x86_64-linux-gnu/bits/types/__FILE.h:
-
-/usr/include/c++/15/bits/locale_classes.h:
 
 /usr/lib/gcc/x86_64-linux-gnu/15/include/avx2intrin.h:
 
@@ -1578,8 +1580,6 @@ CMakeFiles/ps1emu_gui.dir/src/ui/gui_main.cpp.o:
 /usr/include/c++/15/pstl/glue_algorithm_defs.h:
 
 /usr/include/c++/15/tr1/gamma.tcc:
-
-/lib/x86_64-linux-gnu/libXdmcp.so.6:
 
 /usr/include/x86_64-linux-gnu/sys/cdefs.h:
 
@@ -1628,10 +1628,6 @@ CMakeFiles/ps1emu_gui.dir/src/ui/gui_main.cpp.o:
 /usr/include/c++/15/bits/hashtable_policy.h:
 
 /usr/lib/gcc/x86_64-linux-gnu/15/include/avx512cdintrin.h:
-
-/usr/include/linux/types.h:
-
-/usr/lib/gcc/x86_64-linux-gnu/15/include/amxbf16intrin.h:
 
 /usr/include/c++/15/string:
 
@@ -1698,6 +1694,8 @@ CMakeFiles/ps1emu_gui.dir/src/ui/gui_main.cpp.o:
 /usr/lib/gcc/x86_64-linux-gnu/15/include/avx512dqintrin.h:
 
 /usr/include/c++/15/bits/stl_tempbuf.h:
+
+/usr/include/c++/15/bits/deque.tcc:
 
 /usr/include/c++/15/tr1/riemann_zeta.tcc:
 
@@ -1784,6 +1782,14 @@ CMakeFiles/ps1emu_gui.dir/src/ui/gui_main.cpp.o:
 /usr/include/c++/15/bits/node_handle.h:
 
 /lib/i386-linux-gnu/libmp3lame.so.0:
+
+/usr/include/c++/15/bits/localefwd.h:
+
+/usr/lib/x86_64-linux-gnu/libc.so:
+
+/usr/lib/x86_64-linux-gnu/Scrt1.o:
+
+/usr/include/c++/15/deque:
 
 /usr/include/SDL2/SDL_scancode.h:
 
@@ -1894,6 +1900,14 @@ CMakeFiles/ps1emu_gui.dir/src/ui/gui_main.cpp.o:
 /usr/include/c++/15/backward/binders.h:
 
 /usr/include/c++/15/exception:
+
+/usr/lib/gcc/x86_64-linux-gnu/15/libgcc.a:
+
+/usr/include/c++/15/bits/stl_deque.h:
+
+/usr/include/c++/15/bits/locale_classes.h:
+
+/usr/include/x86_64-linux-gnu/bits/types/__FILE.h:
 
 /usr/include/SDL2/SDL_loadso.h:
 
@@ -2009,10 +2023,6 @@ CMakeFiles/ps1emu_gui.dir/src/ui/gui_main.cpp.o:
 
 /usr/include/SDL2/SDL_mouse.h:
 
-/usr/include/c++/15/bits/allocated_ptr.h:
-
-/usr/include/locale.h:
-
 /home/jessie/Documents/Ps1-Emulator/src/core/cpu.h:
 
 /usr/include/SDL2/SDL_sensor.h:
@@ -2078,8 +2088,6 @@ CMakeFiles/ps1emu_gui.dir/src/ui/gui_main.cpp.o:
 /usr/include/c++/15/bits/concept_check.h:
 
 /usr/lib/gcc/x86_64-linux-gnu/15/include/bmi2intrin.h:
-
-/usr/include/c++/15/bits/localefwd.h:
 
 /usr/include/c++/15/bits/fs_ops.h:
 
@@ -2213,6 +2221,14 @@ libps1emu_core.a:
 
 /usr/include/c++/15/bits/locale_conv.h:
 
+/usr/include/linux/types.h:
+
+/usr/lib/gcc/x86_64-linux-gnu/15/include/amxbf16intrin.h:
+
+/usr/include/c++/15/bits/allocated_ptr.h:
+
+/usr/include/locale.h:
+
 /usr/include/sched.h:
 
 /usr/lib/gcc/x86_64-linux-gnu/15/include/ia32intrin.h:
@@ -2234,8 +2250,6 @@ libps1emu_core.a:
 /usr/include/c++/15/tr1/hypergeometric.tcc:
 
 /usr/include/time.h:
-
-/lib/x86_64-linux-gnu/libXext.so.6:
 
 /usr/include/x86_64-linux-gnu/SDL2/_real_SDL_config.h:
 
@@ -2726,5 +2740,3 @@ CMakeFiles/ps1emu_gui.dir/src/ui/gui_app.cpp.o:
 /lib/x86_64-linux-gnu/libX11.so.6:
 
 /lib/x86_64-linux-gnu/libXau.so.6:
-
-/lib/x86_64-linux-gnu/libXcursor.so.1:

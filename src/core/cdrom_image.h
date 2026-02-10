@@ -13,6 +13,11 @@ public:
   bool load(const std::string &path, std::string &error);
   bool loaded() const;
   bool read_sector(uint32_t lba, std::vector<uint8_t> &out);
+  uint32_t sector_size() const;
+  uint32_t data_size() const;
+  int32_t start_lba() const;
+  uint32_t total_sectors() const;
+  uint32_t end_lba() const;
 
 private:
   struct TrackInfo {
