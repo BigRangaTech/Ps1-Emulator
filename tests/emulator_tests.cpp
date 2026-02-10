@@ -359,6 +359,52 @@ static bool test_gpu_read_fifo() {
   return true;
 }
 
+static bool test_gpu_dma_request_bits() {
+  ps1emu::MmioBus mmio;
+  mmio.reset();
+
+  mmio.write32(0x1F801814, 0x04000002u); // DMA dir GPU->CPU
+  uint32_t stat = mmio.read32(0x1F801814);
+  CHECK((stat & (1u << 25)) == 0);
+
+  mmio.queue_gpu_read_data({0x12345678u});
+  stat = mmio.read32(0x1F801814);
+  CHECK((stat & (1u << 25)) != 0);
+
+  return true;
+}
+
+static bool test_gpu_read_delay() {
+  ps1emu::MmioBus mmio;
+  mmio.reset();
+
+  mmio.schedule_gpu_read_data({0x0A0B0C0Du}, 5);
+  CHECK((mmio.read32(0x1F801814) & (1u << 27)) == 0);
+
+  mmio.tick(4);
+  CHECK((mmio.read32(0x1F801814) & (1u << 27)) == 0);
+
+  mmio.tick(1);
+  CHECK((mmio.read32(0x1F801814) & (1u << 27)) != 0);
+  uint32_t word = mmio.read32(0x1F801810);
+  CHECK(word == 0x0A0B0C0Du);
+  return true;
+}
+
+static bool test_gpu_stat_busy_decay() {
+  ps1emu::MmioBus mmio;
+  mmio.reset();
+
+  mmio.write32(0x1F801810, 0x02000000);
+  uint32_t stat = mmio.read32(0x1F801814);
+  CHECK((stat & (1u << 26)) == 0);
+
+  mmio.tick(2);
+  stat = mmio.read32(0x1F801814);
+  CHECK((stat & (1u << 26)) != 0);
+  return true;
+}
+
 static bool test_gte_flags_and_saturation() {
   ps1emu::Gte gte;
   gte.reset();
@@ -923,6 +969,9 @@ int main() {
       {"mmio_gpu_fifo", test_mmio_gpu_fifo},
       {"gpu_status_bits", test_gpu_status_bits},
       {"gpu_read_fifo", test_gpu_read_fifo},
+      {"gpu_dma_request_bits", test_gpu_dma_request_bits},
+      {"gpu_read_delay", test_gpu_read_delay},
+      {"gpu_stat_busy_decay", test_gpu_stat_busy_decay},
       {"gte_flags_and_saturation", test_gte_flags_and_saturation},
       {"gte_color_fifo_saturation", test_gte_color_fifo_saturation},
       {"gte_divide_overflow", test_gte_divide_overflow},

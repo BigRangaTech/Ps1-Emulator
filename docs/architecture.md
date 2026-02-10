@@ -49,7 +49,11 @@
 - The GPU stub renders into a 1024x512 16-bit VRAM and presents from the display area.
 - Draw-to-display gating is respected for draw commands that target the active display region.
 - 24-bit display output is a best-effort byte-level view of VRAM and will need refinement.
+- 24-bit mode reduces effective horizontal resolution (approx. 2/3 scaling).
 - GPUSTAT ready/busy bits are approximated using FIFO occupancy and a simple busy-cycle counter.
+- GPUSTAT DMA request bit reflects the configured DMA direction and data availability.
 - Interlace field toggling is approximate (CPU-cycle based) and will need calibration later.
 - VRAM readback is scheduled with a small delay to model transfer latency.
 - DMA channel 2 supports GPU->CPU transfers by streaming GPUREAD words into RAM.
+- GP0/GP1 writes add small busy penalties, especially if the FIFO grows large.
+- VRAM image transfers respect mask bit settings (write mask + mask test).

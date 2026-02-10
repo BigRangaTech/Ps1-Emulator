@@ -338,6 +338,8 @@ public:
     if (w <= 0 || h <= 0) {
       return out;
     }
+    w = std::min(w, kVramWidth);
+    h = std::min(h, kVramHeight);
     out.reserve(static_cast<size_t>(w) * h * 2);
     for (int yy = 0; yy < h; ++yy) {
       int sy = y + yy;
@@ -522,6 +524,11 @@ private:
       }
     }
 
+    if (display_depth24_) {
+      width = std::max(16, (width * 2) / 3);
+      width = (width + 1) & ~1;
+    }
+
     update_display_size(width, height);
   }
 
@@ -561,6 +568,8 @@ private:
     if (w <= 0 || h <= 0) {
       return;
     }
+    w = std::min(w, kVramWidth);
+    h = std::min(h, kVramHeight);
     for (int y = 0; y < h; ++y) {
       for (int x = 0; x < w; ++x) {
         int sx = src_x + x;
@@ -570,8 +579,8 @@ private:
         if (!in_vram(sx, sy) || !in_vram(dx, dy)) {
           continue;
         }
-        vram_[static_cast<size_t>(dy) * kVramWidth + dx] =
-            vram_[static_cast<size_t>(sy) * kVramWidth + sx];
+        uint16_t color = vram_[static_cast<size_t>(sy) * kVramWidth + sx];
+        write_vram_pixel(dx, dy, color);
       }
     }
   }
@@ -587,6 +596,8 @@ private:
     if (w <= 0 || h <= 0) {
       return;
     }
+    w = std::min(w, kVramWidth);
+    h = std::min(h, kVramHeight);
     size_t pixel_count = static_cast<size_t>(w) * h;
     size_t word_index = 3;
     size_t pixel_index = 0;
@@ -598,9 +609,7 @@ private:
         uint16_t pixel = (i == 0) ? p0 : p1;
         int x = dst_x + static_cast<int>(pixel_index % static_cast<size_t>(w));
         int y = dst_y + static_cast<int>(pixel_index / static_cast<size_t>(w));
-        if (in_vram(x, y)) {
-          vram_[static_cast<size_t>(y) * kVramWidth + x] = pixel;
-        }
+        write_vram_pixel(x, y, pixel);
         pixel_index++;
       }
     }
@@ -1122,6 +1131,18 @@ private:
 
   bool in_vram(int x, int y) const {
     return x >= 0 && x < kVramWidth && y >= 0 && y < kVramHeight;
+  }
+
+  void write_vram_pixel(int x, int y, uint16_t color) {
+    if (!in_vram(x, y)) {
+      return;
+    }
+    size_t idx = static_cast<size_t>(y) * kVramWidth + x;
+    if (mask_eval_ && (vram_[idx] & 0x8000u)) {
+      return;
+    }
+    uint16_t out = mask_set_ ? static_cast<uint16_t>(color | 0x8000u) : color;
+    vram_[idx] = out;
   }
 
   uint8_t vram_byte(int byte_x, int y) const {

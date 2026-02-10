@@ -589,11 +589,13 @@ void MmioBus::write32(uint32_t addr, uint32_t value) {
   if (addr == 0x1F801810) { // GPU GP0
     gpu_gp0_ = value;
     gpu_gp0_fifo_.push_back(value);
-    gpu_busy_cycles_ = std::min<uint32_t>(gpu_busy_cycles_ + 2, 100000);
+    uint32_t penalty = gpu_gp0_fifo_.size() > 32 ? 4u : 2u;
+    gpu_busy_cycles_ = std::min<uint32_t>(gpu_busy_cycles_ + penalty, 100000);
   } else if (addr == 0x1F801814) { // GPU GP1
     gpu_gp1_ = value;
     gpu_gp1_fifo_.push_back(value);
-    gpu_busy_cycles_ = std::min<uint32_t>(gpu_busy_cycles_ + 1, 100000);
+    uint32_t penalty = gpu_gp1_fifo_.size() > 32 ? 2u : 1u;
+    gpu_busy_cycles_ = std::min<uint32_t>(gpu_busy_cycles_ + penalty, 100000);
     uint8_t cmd = static_cast<uint8_t>(value >> 24);
     switch (cmd) {
       case 0x00: { // Reset GPU
@@ -603,7 +605,10 @@ void MmioBus::write32(uint32_t addr, uint32_t value) {
       case 0x01: { // Reset command buffer
         gpu_gp0_fifo_.clear();
         gpu_read_fifo_.clear();
+        gpu_read_pending_.clear();
+        gpu_read_pending_delay_ = 0;
         gpu_read_latch_ = 0;
+        gpu_busy_cycles_ = 0;
         break;
       }
       case 0x02: { // Ack GPU IRQ

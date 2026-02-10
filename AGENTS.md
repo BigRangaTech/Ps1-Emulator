@@ -37,6 +37,9 @@ cmake --build build -j
 - GPU: tighten DMA pacing and GPUREAD/VRAM transfer timing.
 - GPU: verify 24-bit display mapping against real hardware behavior.
 - GPU: validate GPU->CPU DMA transfers with real BIOS/ROM paths.
+- GPU: confirm 24-bit horizontal scaling and display range mapping with known test ROMs.
+- GPU: validate GP0/GP1 FIFO busy penalties vs real hardware stall behavior.
+- GPU: validate VRAM transfer mask behavior with hardware tests.
 - CD-ROM: full command set, sector timing, XA audio stub, DMA pacing.
 - SPU: mixing + ADPCM decode, timing and IRQs.
 - Input: controller polling with mapping layer, hotplug.
