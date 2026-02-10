@@ -12,6 +12,8 @@ CMakeFiles/ps1emu.dir/src/main.cpp.o
  /home/jessie/Documents/Ps1-Emulator/src/core/cpu_state.h
  /home/jessie/Documents/Ps1-Emulator/src/core/dynarec.h
  /home/jessie/Documents/Ps1-Emulator/src/core/emu_core.h
+ /home/jessie/Documents/Ps1-Emulator/src/core/gpu_packets.h
+ /home/jessie/Documents/Ps1-Emulator/src/core/gte.h
  /home/jessie/Documents/Ps1-Emulator/src/core/memory_map.h
  /home/jessie/Documents/Ps1-Emulator/src/core/mmio.h
  /home/jessie/Documents/Ps1-Emulator/src/core/scheduler.h

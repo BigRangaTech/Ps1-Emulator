@@ -202,13 +202,14 @@ CMakeFiles/ps1emu_tests.dir/tests/emulator_tests.cpp.o: \
  /usr/include/c++/15/bits/enable_special_members.h \
  /usr/include/c++/15/bits/node_handle.h \
  /usr/include/c++/15/bits/erase_if.h \
+ /home/jessie/Documents/Ps1-Emulator/src/core/gte.h \
  /home/jessie/Documents/Ps1-Emulator/src/core/scheduler.h \
  /home/jessie/Documents/Ps1-Emulator/src/core/emu_core.h \
  /home/jessie/Documents/Ps1-Emulator/src/core/config.h \
  /home/jessie/Documents/Ps1-Emulator/include/ps1emu/sandbox.h \
+ /home/jessie/Documents/Ps1-Emulator/src/core/gpu_packets.h \
  /home/jessie/Documents/Ps1-Emulator/src/plugins/plugin_host.h \
  /home/jessie/Documents/Ps1-Emulator/src/plugins/ipc.h \
- /home/jessie/Documents/Ps1-Emulator/src/core/gpu_packets.h \
  /usr/include/c++/15/algorithm /usr/include/c++/15/bits/stl_algo.h \
  /usr/include/c++/15/bits/algorithmfwd.h \
  /usr/include/c++/15/bits/stl_heap.h \

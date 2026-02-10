@@ -274,10 +274,10 @@ public:
         display_enabled_ = true;
         display_x_ = 0;
         display_y_ = 0;
-        h_range_start_ = 0;
-        h_range_end_ = 0;
-        v_range_start_ = 0;
-        v_range_end_ = 0;
+        h_range_start_ = 0x200;
+        h_range_end_ = 0x200 + 256 * 10;
+        v_range_start_ = 0x10;
+        v_range_end_ = 0x10 + 240;
         set_display_mode(0x00000000);
         break;
       }
@@ -309,6 +309,27 @@ public:
       default:
         break;
     }
+  }
+
+  std::vector<uint8_t> read_vram_region(int x, int y, int w, int h) {
+    std::vector<uint8_t> out;
+    if (w <= 0 || h <= 0) {
+      return out;
+    }
+    out.reserve(static_cast<size_t>(w) * h * 2);
+    for (int yy = 0; yy < h; ++yy) {
+      int sy = y + yy;
+      for (int xx = 0; xx < w; ++xx) {
+        int sx = x + xx;
+        uint16_t color = 0;
+        if (in_vram(sx, sy)) {
+          color = vram_[static_cast<size_t>(sy) * kVramWidth + sx];
+        }
+        out.push_back(static_cast<uint8_t>(color & 0xFF));
+        out.push_back(static_cast<uint8_t>((color >> 8) & 0xFF));
+      }
+    }
+    return out;
   }
 
   void present() {
@@ -367,6 +388,7 @@ private:
       texpage_y_ = (mode & 0x10u) ? 256 : 0;
       tex_depth_ = static_cast<int>((mode >> 7) & 0x3u);
       blend_mode_ = static_cast<int>((mode >> 5) & 0x3u);
+      dithering_enabled_ = (mode & (1u << 9)) != 0;
     } else if (cmd == 0xE3) { // draw area top-left
       draw_x1_ = static_cast<int>(word & 0x3FFu);
       draw_y1_ = static_cast<int>((word >> 10) & 0x3FFu);
@@ -389,6 +411,9 @@ private:
       tex_window_mask_y_ = static_cast<int>((word >> 5) & 0x1Fu);
       tex_window_offset_x_ = static_cast<int>((word >> 10) & 0x1Fu);
       tex_window_offset_y_ = static_cast<int>((word >> 15) & 0x1Fu);
+    } else if (cmd == 0xE6) { // mask bit setting
+      mask_set_ = (word & 0x1u) != 0;
+      mask_eval_ = (word & 0x2u) != 0;
     }
   }
 
@@ -430,7 +455,20 @@ private:
 
     if (h_range_end_ > h_range_start_) {
       int span = h_range_end_ - h_range_start_;
-      int derived = span / 8;
+      int cycles_per_pixel = 8;
+      if (mode_width_ == 256) {
+        cycles_per_pixel = 10;
+      } else if (mode_width_ == 320) {
+        cycles_per_pixel = 8;
+      } else if (mode_width_ == 368) {
+        cycles_per_pixel = 7;
+      } else if (mode_width_ == 512) {
+        cycles_per_pixel = 5;
+      } else if (mode_width_ == 640) {
+        cycles_per_pixel = 4;
+      }
+      int derived = span / cycles_per_pixel;
+      derived = (derived + 2) & ~3;
       if (derived >= 16) {
         width = std::clamp(derived, 16, 640);
       }
@@ -535,6 +573,7 @@ private:
     bool textured = (cmd & 0x04) != 0;
     bool quad = (cmd & 0x08) != 0;
     bool semi = (cmd & 0x02) != 0;
+    bool raw = (cmd & 0x01) != 0;
 
     size_t vertices = quad ? 4 : 3;
     std::vector<Vertex> verts(vertices);
@@ -586,9 +625,29 @@ private:
     }
 
     if (textured) {
-      draw_textured_triangle(verts[0], verts[1], verts[2], tex_depth, tpage_x, tpage_y, clut_x, clut_y, semi);
+      draw_textured_triangle(verts[0],
+                             verts[1],
+                             verts[2],
+                             tex_depth,
+                             tpage_x,
+                             tpage_y,
+                             clut_x,
+                             clut_y,
+                             semi,
+                             gouraud,
+                             raw);
       if (quad) {
-        draw_textured_triangle(verts[0], verts[2], verts[3], tex_depth, tpage_x, tpage_y, clut_x, clut_y, semi);
+        draw_textured_triangle(verts[0],
+                               verts[2],
+                               verts[3],
+                               tex_depth,
+                               tpage_x,
+                               tpage_y,
+                               clut_x,
+                               clut_y,
+                               semi,
+                               gouraud,
+                               raw);
       }
     } else {
       draw_triangle(verts[0], verts[1], verts[2], gouraud, semi);
@@ -605,6 +664,7 @@ private:
     uint8_t cmd = static_cast<uint8_t>(words[0] >> 24);
     bool textured = (cmd & 0x04) != 0;
     bool semi = (cmd & 0x02) != 0;
+    bool raw = (cmd & 0x01) != 0;
     uint32_t size_code = (cmd >> 3) & 0x3;
     int w = 0;
     int h = 0;
@@ -636,7 +696,20 @@ private:
       uint16_t clut = static_cast<uint16_t>(uv >> 16);
       int clut_x = static_cast<int>(clut & 0x3Fu) * 16;
       int clut_y = static_cast<int>((clut >> 6) & 0x1FFu);
-      draw_textured_rect(x, y, w, h, u, v, tex_depth_, texpage_x_, texpage_y_, clut_x, clut_y, semi);
+      draw_textured_rect(x,
+                         y,
+                         w,
+                         h,
+                         u,
+                         v,
+                         tex_depth_,
+                         texpage_x_,
+                         texpage_y_,
+                         clut_x,
+                         clut_y,
+                         semi,
+                         raw,
+                         words[0] & 0x00FFFFFFu);
       return;
     }
 
@@ -770,7 +843,9 @@ private:
                           int tpage_y,
                           int clut_x,
                           int clut_y,
-                          bool semi) {
+                          bool semi,
+                          bool raw,
+                          uint32_t modulate) {
     if (w <= 0 || h <= 0) {
       return;
     }
@@ -786,8 +861,12 @@ private:
         if (transparent) {
           continue;
         }
+        uint16_t shaded = color;
+        if (!raw) {
+          shaded = modulate_color(color, modulate);
+        }
         bool apply_semi = semi && (color & 0x8000u);
-        set_pixel(x + xx, y + yy, static_cast<uint16_t>(color & 0x7FFFu), apply_semi);
+        set_pixel(x + xx, y + yy, static_cast<uint16_t>(shaded & 0x7FFFu), apply_semi);
       }
     }
   }
@@ -849,7 +928,9 @@ private:
                               int tpage_y,
                               int clut_x,
                               int clut_y,
-                              bool semi) {
+                              bool semi,
+                              bool gouraud,
+                              bool raw) {
     int min_x = std::max(draw_x1_, std::min({v0.x, v1.x, v2.x}));
     int max_x = std::min(draw_x2_, std::max({v0.x, v1.x, v2.x}));
     int min_y = std::max(draw_y1_, std::min({v0.y, v1.y, v2.y}));
@@ -890,8 +971,24 @@ private:
         if (transparent) {
           continue;
         }
+        uint32_t modulate = v0.color;
+        if (gouraud) {
+          auto c0 = v0.color;
+          auto c1 = v1.color;
+          auto c2 = v2.color;
+          float r = ((c0 & 0xFF) * w0 + (c1 & 0xFF) * w1 + (c2 & 0xFF) * w2);
+          float g = (((c0 >> 8) & 0xFF) * w0 + ((c1 >> 8) & 0xFF) * w1 + ((c2 >> 8) & 0xFF) * w2);
+          float b = (((c0 >> 16) & 0xFF) * w0 + ((c1 >> 16) & 0xFF) * w1 + ((c2 >> 16) & 0xFF) * w2);
+          modulate = (static_cast<uint32_t>(b) << 16) |
+                     (static_cast<uint32_t>(g) << 8) |
+                     static_cast<uint32_t>(r);
+        }
+        uint16_t shaded = color;
+        if (!raw) {
+          shaded = modulate_color(color, modulate);
+        }
         bool apply_semi = semi && (color & 0x8000u);
-        set_pixel(x, y, static_cast<uint16_t>(color & 0x7FFFu), apply_semi);
+        set_pixel(x, y, static_cast<uint16_t>(shaded & 0x7FFFu), apply_semi);
       }
     }
   }
@@ -907,6 +1004,8 @@ private:
                       bool &out_transparent) {
     out_transparent = false;
     apply_texture_window(u, v);
+    u &= 0xFF;
+    v &= 0xFF;
     if (tex_depth == 2) { // 15-bit direct
       int x = tpage_x + u;
       int y = tpage_y + v;
@@ -1010,6 +1109,36 @@ private:
     return static_cast<uint16_t>((b << 10) | (g << 5) | r);
   }
 
+  static uint16_t modulate_color(uint16_t texel, uint32_t color) {
+    int tr = (texel & 0x1F) << 3;
+    int tg = ((texel >> 5) & 0x1F) << 3;
+    int tb = ((texel >> 10) & 0x1F) << 3;
+    int cr = static_cast<int>(color & 0xFF);
+    int cg = static_cast<int>((color >> 8) & 0xFF);
+    int cb = static_cast<int>((color >> 16) & 0xFF);
+    int r = (tr * cr + 127) / 255;
+    int g = (tg * cg + 127) / 255;
+    int b = (tb * cb + 127) / 255;
+    return static_cast<uint16_t>(((b >> 3) << 10) | ((g >> 3) << 5) | (r >> 3));
+  }
+
+  static uint16_t dither_color(uint16_t color, int x, int y) {
+    static const int matrix[4][4] = {
+        {0, 8, 2, 10},
+        {12, 4, 14, 6},
+        {3, 11, 1, 9},
+        {15, 7, 13, 5},
+    };
+    int d = (matrix[y & 3][x & 3] - 8) >> 2; // range -2..1
+    int r = (color & 0x1F) + d;
+    int g = ((color >> 5) & 0x1F) + d;
+    int b = ((color >> 10) & 0x1F) + d;
+    r = std::clamp(r, 0, 31);
+    g = std::clamp(g, 0, 31);
+    b = std::clamp(b, 0, 31);
+    return static_cast<uint16_t>((b << 10) | (g << 5) | r);
+  }
+
   void set_pixel(int x, int y, uint16_t color, bool semi) {
     if (x < draw_x1_ || x > draw_x2_ || y < draw_y1_ || y > draw_y2_) {
       return;
@@ -1018,11 +1147,19 @@ private:
       return;
     }
     size_t idx = static_cast<size_t>(y) * kVramWidth + x;
+    if (mask_eval_ && (vram_[idx] & 0x8000u)) {
+      return;
+    }
+    uint16_t src = static_cast<uint16_t>(color & 0x7FFFu);
+    if (dithering_enabled_) {
+      src = dither_color(src, x, y);
+    }
     if (semi) {
-      uint16_t dst = vram_[idx];
-      vram_[idx] = blend_colors(dst & 0x7FFFu, color & 0x7FFFu, blend_mode_);
+      uint16_t dst = static_cast<uint16_t>(vram_[idx] & 0x7FFFu);
+      uint16_t blended = blend_colors(dst, src, blend_mode_);
+      vram_[idx] = mask_set_ ? static_cast<uint16_t>(blended | 0x8000u) : blended;
     } else {
-      vram_[idx] = static_cast<uint16_t>(color & 0x7FFFu);
+      vram_[idx] = mask_set_ ? static_cast<uint16_t>(src | 0x8000u) : src;
     }
   }
 
@@ -1054,6 +1191,9 @@ private:
   int texpage_y_ = 0;
   int tex_depth_ = 2;
   int blend_mode_ = 0;
+  bool mask_set_ = false;
+  bool mask_eval_ = false;
+  bool dithering_enabled_ = false;
   int tex_window_mask_x_ = 0;
   int tex_window_mask_y_ = 0;
   int tex_window_offset_x_ = 0;
@@ -1142,6 +1282,23 @@ int main() {
         gpu.handle_gp1(word);
       }
       write_frame(0x0002, {});
+      continue;
+    }
+    if (type == 0x0004) {
+      if (payload.size() >= 8) {
+        uint16_t x = static_cast<uint16_t>(payload[0]) |
+                     static_cast<uint16_t>(payload[1] << 8);
+        uint16_t y = static_cast<uint16_t>(payload[2]) |
+                     static_cast<uint16_t>(payload[3] << 8);
+        uint16_t w = static_cast<uint16_t>(payload[4]) |
+                     static_cast<uint16_t>(payload[5] << 8);
+        uint16_t h = static_cast<uint16_t>(payload[6]) |
+                     static_cast<uint16_t>(payload[7] << 8);
+        std::vector<uint8_t> data = gpu.read_vram_region(x, y, w, h);
+        write_frame(0x0005, data);
+      } else {
+        write_frame(0x0005, {});
+      }
       continue;
     }
     write_frame(0x0002, {});

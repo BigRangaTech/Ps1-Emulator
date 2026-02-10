@@ -56,6 +56,77 @@ void EmulatorCore::run_for_cycles(uint32_t cycles) {
   }
 }
 
+bool EmulatorCore::send_gpu_packet(const GpuPacket &packet) {
+  std::vector<uint8_t> payload;
+  payload.reserve(packet.words.size() * sizeof(uint32_t));
+  for (uint32_t word : packet.words) {
+    payload.push_back(static_cast<uint8_t>(word & 0xFF));
+    payload.push_back(static_cast<uint8_t>((word >> 8) & 0xFF));
+    payload.push_back(static_cast<uint8_t>((word >> 16) & 0xFF));
+    payload.push_back(static_cast<uint8_t>((word >> 24) & 0xFF));
+  }
+
+  if (!plugin_host_.send_frame(PluginType::Gpu, 0x0001, payload)) {
+    std::cerr << "Failed to send GPU command frame\n";
+    return false;
+  }
+
+  uint16_t reply_type = 0;
+  std::vector<uint8_t> reply_payload;
+  if (!plugin_host_.recv_frame(PluginType::Gpu, reply_type, reply_payload) || reply_type != 0x0002) {
+    std::cerr << "GPU command frame not acknowledged\n";
+    return false;
+  }
+  return true;
+}
+
+bool EmulatorCore::request_vram_read(uint16_t x, uint16_t y, uint16_t w, uint16_t h) {
+  std::vector<uint8_t> payload(8);
+  payload[0] = static_cast<uint8_t>(x & 0xFF);
+  payload[1] = static_cast<uint8_t>((x >> 8) & 0xFF);
+  payload[2] = static_cast<uint8_t>(y & 0xFF);
+  payload[3] = static_cast<uint8_t>((y >> 8) & 0xFF);
+  payload[4] = static_cast<uint8_t>(w & 0xFF);
+  payload[5] = static_cast<uint8_t>((w >> 8) & 0xFF);
+  payload[6] = static_cast<uint8_t>(h & 0xFF);
+  payload[7] = static_cast<uint8_t>((h >> 8) & 0xFF);
+
+  if (!plugin_host_.send_frame(PluginType::Gpu, 0x0004, payload)) {
+    std::cerr << "Failed to send GPU VRAM read request\n";
+    return false;
+  }
+
+  uint16_t reply_type = 0;
+  std::vector<uint8_t> reply_payload;
+  if (!plugin_host_.recv_frame(PluginType::Gpu, reply_type, reply_payload) || reply_type != 0x0005) {
+    std::cerr << "GPU VRAM read response not received\n";
+    return false;
+  }
+
+  size_t payload_bytes = reply_payload.size() & ~static_cast<size_t>(1);
+  std::vector<uint32_t> words;
+  words.reserve((payload_bytes + 3) / 4);
+  uint32_t current = 0;
+  bool low = true;
+  for (size_t i = 0; i + 1 < payload_bytes; i += 2) {
+    uint16_t pix = static_cast<uint16_t>(reply_payload[i]) |
+                   static_cast<uint16_t>(reply_payload[i + 1] << 8);
+    if (low) {
+      current = pix;
+      low = false;
+    } else {
+      current |= (static_cast<uint32_t>(pix) << 16);
+      words.push_back(current);
+      low = true;
+    }
+  }
+  if (!low) {
+    words.push_back(current);
+  }
+  mmio_.queue_gpu_read_data(std::move(words));
+  return true;
+}
+
 void EmulatorCore::flush_gpu_commands() {
   if (!mmio_.has_gpu_commands()) {
     return;
@@ -71,32 +142,21 @@ void EmulatorCore::flush_gpu_commands() {
     mmio_.restore_gpu_commands(std::move(remainder));
   }
 
-  auto send_packet = [&](const GpuPacket &packet) {
-    std::vector<uint8_t> payload;
-    payload.reserve(packet.words.size() * sizeof(uint32_t));
-    for (uint32_t word : packet.words) {
-      payload.push_back(static_cast<uint8_t>(word & 0xFF));
-      payload.push_back(static_cast<uint8_t>((word >> 8) & 0xFF));
-      payload.push_back(static_cast<uint8_t>((word >> 16) & 0xFF));
-      payload.push_back(static_cast<uint8_t>((word >> 24) & 0xFF));
-    }
-
-    if (!plugin_host_.send_frame(PluginType::Gpu, 0x0001, payload)) {
-      std::cerr << "Failed to send GPU command frame\n";
-      return false;
-    }
-
-    uint16_t reply_type = 0;
-    std::vector<uint8_t> reply_payload;
-    if (!plugin_host_.recv_frame(PluginType::Gpu, reply_type, reply_payload) || reply_type != 0x0002) {
-      std::cerr << "GPU command frame not acknowledged\n";
-      return false;
-    }
-    return true;
-  };
-
   for (const auto &packet : packets) {
-    if (!send_packet(packet)) {
+    if (!packet.words.empty()) {
+      mmio_.apply_gp0_state(packet.words[0]);
+    }
+    if (packet.command == 0xC0 && packet.words.size() >= 3) {
+      uint16_t x = static_cast<uint16_t>(packet.words[1] & 0xFFFFu);
+      uint16_t y = static_cast<uint16_t>((packet.words[1] >> 16) & 0xFFFFu);
+      uint16_t w = static_cast<uint16_t>(packet.words[2] & 0xFFFFu);
+      uint16_t h = static_cast<uint16_t>((packet.words[2] >> 16) & 0xFFFFu);
+      if (!request_vram_read(x, y, w, h)) {
+        return;
+      }
+      continue;
+    }
+    if (!send_gpu_packet(packet)) {
       return;
     }
   }
@@ -179,32 +239,21 @@ void EmulatorCore::process_dma() {
       gpu_dma_remainder_ = std::move(remainder);
     }
 
-    auto send_packet = [&](const GpuPacket &packet) {
-      std::vector<uint8_t> payload;
-      payload.reserve(packet.words.size() * sizeof(uint32_t));
-      for (uint32_t word : packet.words) {
-        payload.push_back(static_cast<uint8_t>(word & 0xFF));
-        payload.push_back(static_cast<uint8_t>((word >> 8) & 0xFF));
-        payload.push_back(static_cast<uint8_t>((word >> 16) & 0xFF));
-        payload.push_back(static_cast<uint8_t>((word >> 24) & 0xFF));
-      }
-
-      if (!plugin_host_.send_frame(PluginType::Gpu, 0x0001, payload)) {
-        std::cerr << "DMA GPU frame send failed\n";
-        return false;
-      }
-
-      uint16_t reply_type = 0;
-      std::vector<uint8_t> reply_payload;
-      if (!plugin_host_.recv_frame(PluginType::Gpu, reply_type, reply_payload) || reply_type != 0x0002) {
-        std::cerr << "DMA GPU frame not acknowledged\n";
-        return false;
-      }
-      return true;
-    };
-
     for (const auto &packet : packets) {
-      if (!send_packet(packet)) {
+      if (!packet.words.empty()) {
+        mmio_.apply_gp0_state(packet.words[0]);
+      }
+      if (packet.command == 0xC0 && packet.words.size() >= 3) {
+        uint16_t x = static_cast<uint16_t>(packet.words[1] & 0xFFFFu);
+        uint16_t y = static_cast<uint16_t>((packet.words[1] >> 16) & 0xFFFFu);
+        uint16_t w = static_cast<uint16_t>(packet.words[2] & 0xFFFFu);
+        uint16_t h = static_cast<uint16_t>((packet.words[2] >> 16) & 0xFFFFu);
+        if (!request_vram_read(x, y, w, h)) {
+          break;
+        }
+        continue;
+      }
+      if (!send_gpu_packet(packet)) {
         break;
       }
     }

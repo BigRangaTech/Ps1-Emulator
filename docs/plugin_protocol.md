@@ -43,6 +43,9 @@ Payload follows the header. Maximum payload size is 16 MiB.
 ## Frame Types (Stub)
 - `0x0001` GPU command buffer (payload is raw 32-bit command words)
 - `0x0002` ACK (payload optional; GPU stub returns a 32-bit count)
+- `0x0003` GPU control buffer (payload is raw 32-bit GP1 words)
+- `0x0004` GPU VRAM read request (payload: x,y,w,h as little-endian uint16)
+- `0x0005` GPU VRAM read response (payload: raw 16-bit pixel data, little-endian)
 
 ## Plugin Types
 - `GPU`

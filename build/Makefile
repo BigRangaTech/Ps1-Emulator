@@ -614,6 +614,30 @@ src/core/gpu_packets.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/ps1emu_core.dir/build.make CMakeFiles/ps1emu_core.dir/src/core/gpu_packets.cpp.s
 .PHONY : src/core/gpu_packets.cpp.s
 
+src/core/gte.o: src/core/gte.cpp.o
+.PHONY : src/core/gte.o
+
+# target to build an object file
+src/core/gte.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/ps1emu_core.dir/build.make CMakeFiles/ps1emu_core.dir/src/core/gte.cpp.o
+.PHONY : src/core/gte.cpp.o
+
+src/core/gte.i: src/core/gte.cpp.i
+.PHONY : src/core/gte.i
+
+# target to preprocess a source file
+src/core/gte.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/ps1emu_core.dir/build.make CMakeFiles/ps1emu_core.dir/src/core/gte.cpp.i
+.PHONY : src/core/gte.cpp.i
+
+src/core/gte.s: src/core/gte.cpp.s
+.PHONY : src/core/gte.s
+
+# target to generate assembly for a file
+src/core/gte.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/ps1emu_core.dir/build.make CMakeFiles/ps1emu_core.dir/src/core/gte.cpp.s
+.PHONY : src/core/gte.cpp.s
+
 src/core/memory_map.o: src/core/memory_map.cpp.o
 .PHONY : src/core/memory_map.o
 
@@ -968,6 +992,9 @@ help:
 	@echo "... src/core/gpu_packets.o"
 	@echo "... src/core/gpu_packets.i"
 	@echo "... src/core/gpu_packets.s"
+	@echo "... src/core/gte.o"
+	@echo "... src/core/gte.i"
+	@echo "... src/core/gte.s"
 	@echo "... src/core/memory_map.o"
 	@echo "... src/core/memory_map.i"
 	@echo "... src/core/memory_map.s"

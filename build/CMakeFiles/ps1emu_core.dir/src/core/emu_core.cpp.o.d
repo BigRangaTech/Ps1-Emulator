@@ -205,8 +205,9 @@ CMakeFiles/ps1emu_core.dir/src/core/emu_core.cpp.o: \
  /usr/include/c++/15/bits/enable_special_members.h \
  /usr/include/c++/15/bits/node_handle.h \
  /usr/include/c++/15/bits/erase_if.h \
+ /home/jessie/Documents/Ps1-Emulator/src/core/gte.h \
  /home/jessie/Documents/Ps1-Emulator/src/core/scheduler.h \
+ /home/jessie/Documents/Ps1-Emulator/src/core/gpu_packets.h \
  /home/jessie/Documents/Ps1-Emulator/src/plugins/plugin_host.h \
  /home/jessie/Documents/Ps1-Emulator/src/plugins/ipc.h \
- /home/jessie/Documents/Ps1-Emulator/src/core/gpu_packets.h \
  /usr/include/c++/15/iostream

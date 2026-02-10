@@ -4,6 +4,7 @@
 #include "core/bios.h"
 #include "core/config.h"
 #include "core/cpu.h"
+#include "core/gpu_packets.h"
 #include "core/memory_map.h"
 #include "core/mmio.h"
 #include "core/scheduler.h"
@@ -30,6 +31,8 @@ private:
   void flush_gpu_commands();
   void flush_gpu_control();
   void process_dma();
+  bool send_gpu_packet(const GpuPacket &packet);
+  bool request_vram_read(uint16_t x, uint16_t y, uint16_t w, uint16_t h);
 
   bool load_and_apply_config(const std::string &config_path);
   CpuCore::Mode resolve_cpu_mode() const;

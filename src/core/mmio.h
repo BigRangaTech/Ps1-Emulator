@@ -30,6 +30,8 @@ public:
   void restore_gpu_commands(std::vector<uint32_t> remainder);
   bool has_gpu_control() const;
   std::vector<uint32_t> take_gpu_control();
+  void apply_gp0_state(uint32_t word);
+  void queue_gpu_read_data(std::vector<uint32_t> words);
   uint32_t consume_dma_channel();
   uint32_t dma_madr(uint32_t channel) const;
   uint32_t dma_bcr(uint32_t channel) const;
@@ -43,6 +45,8 @@ private:
   static constexpr uint32_t kSize = 0x2000;
 
   uint32_t offset(uint32_t addr) const;
+  void reset_gpu_state();
+  uint32_t compute_gpustat() const;
   void cdrom_push_response(uint8_t value);
   void cdrom_raise_irq(uint8_t flags);
   void cdrom_execute_command(uint8_t cmd);
@@ -53,6 +57,31 @@ private:
   uint32_t gpu_gp1_ = 0;
   std::vector<uint32_t> gpu_gp0_fifo_;
   std::vector<uint32_t> gpu_gp1_fifo_;
+  std::vector<uint32_t> gpu_read_fifo_;
+  uint32_t gpu_read_latch_ = 0;
+  uint32_t gpu_texpage_x_ = 0;
+  uint32_t gpu_texpage_y_ = 0;
+  uint32_t gpu_semi_ = 0;
+  uint32_t gpu_tex_depth_ = 0;
+  bool gpu_dither_ = false;
+  bool gpu_draw_to_display_ = false;
+  bool gpu_mask_set_ = false;
+  bool gpu_mask_eval_ = false;
+  bool gpu_display_disabled_ = true;
+  bool gpu_irq_ = false;
+  bool gpu_interlace_ = false;
+  bool gpu_flip_ = false;
+  bool gpu_hres2_ = false;
+  uint32_t gpu_hres1_ = 0;
+  bool gpu_vres_ = false;
+  bool gpu_vmode_pal_ = false;
+  bool gpu_display_depth24_ = false;
+  uint32_t gpu_dma_dir_ = 0;
+  bool gpu_field_ = false;
+  uint32_t gpu_tex_window_ = 0;
+  uint32_t gpu_draw_area_tl_ = 0;
+  uint32_t gpu_draw_area_br_ = 0;
+  uint32_t gpu_draw_offset_ = 0;
   uint32_t dma_active_channel_ = 0xFFFFFFFFu;
 
   uint16_t irq_stat_ = 0;

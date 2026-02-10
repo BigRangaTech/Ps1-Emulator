@@ -11,6 +11,7 @@ CMakeFiles/ps1emu_tests.dir/tests/emulator_tests.cpp.o: /home/jessie/Documents/P
   /home/jessie/Documents/Ps1-Emulator/src/core/dynarec.h \
   /home/jessie/Documents/Ps1-Emulator/src/core/emu_core.h \
   /home/jessie/Documents/Ps1-Emulator/src/core/gpu_packets.h \
+  /home/jessie/Documents/Ps1-Emulator/src/core/gte.h \
   /home/jessie/Documents/Ps1-Emulator/src/core/memory_map.h \
   /home/jessie/Documents/Ps1-Emulator/src/core/mmio.h \
   /home/jessie/Documents/Ps1-Emulator/src/core/scheduler.h \
@@ -387,6 +388,8 @@ ps1emu_tests: /lib/x86_64-linux-gnu/libc.so.6 \
 
 /usr/include/x86_64-linux-gnu/bits/types/struct_tm.h:
 
+/usr/include/x86_64-linux-gnu/bits/types/struct_timeval.h:
+
 /usr/include/c++/15/ext/atomicity.h:
 
 /usr/include/c++/15/bits/enable_special_members.h:
@@ -434,8 +437,6 @@ ps1emu_tests: /lib/x86_64-linux-gnu/libc.so.6 \
 /usr/include/c++/15/bits/streambuf_iterator.h:
 
 /usr/include/x86_64-linux-gnu/asm/errno.h:
-
-/usr/include/x86_64-linux-gnu/bits/types/struct_timeval.h:
 
 /usr/include/c++/15/bits/stl_tempbuf.h:
 
@@ -499,25 +500,15 @@ libps1emu_core.a:
 
 /usr/include/c++/15/bits/hash_bytes.h:
 
+/usr/include/c++/15/bits/allocated_ptr.h:
+
+/usr/include/c++/15/bits/istream.tcc:
+
 /usr/include/c++/15/bits/algorithmfwd.h:
 
 /usr/include/c++/15/bits/std_abs.h:
 
 /usr/include/c++/15/typeinfo:
-
-/usr/include/c++/15/tuple:
-
-/usr/include/c++/15/exception:
-
-/usr/include/x86_64-linux-gnu/bits/types/sigset_t.h:
-
-/usr/include/asm-generic/bitsperlong.h:
-
-/usr/include/asm-generic/types.h:
-
-/usr/include/x86_64-linux-gnu/sys/wait.h:
-
-/usr/include/asm-generic/errno-base.h:
 
 /usr/lib/x86_64-linux-gnu/libm.so:
 
@@ -530,6 +521,16 @@ libps1emu_core.a:
 /usr/include/c++/15/bits/concept_check.h:
 
 /home/jessie/Documents/Ps1-Emulator/src/core/memory_map.h:
+
+/usr/include/x86_64-linux-gnu/sys/wait.h:
+
+/usr/include/asm-generic/errno-base.h:
+
+/usr/include/x86_64-linux-gnu/bits/types/sigset_t.h:
+
+/usr/include/asm-generic/bitsperlong.h:
+
+/usr/include/asm-generic/types.h:
 
 /home/jessie/Documents/Ps1-Emulator/src/plugins/plugin_host.h:
 
@@ -555,6 +556,14 @@ libps1emu_core.a:
 
 /usr/include/c++/15/bits/charconv.h:
 
+/usr/include/c++/15/exception:
+
+/usr/include/c++/15/tuple:
+
+/home/jessie/Documents/Ps1-Emulator/src/core/scheduler.h:
+
+/usr/include/c++/15/bits/stl_iterator_base_types.h:
+
 /usr/include/c++/15/bits/stl_algobase.h:
 
 /home/jessie/Documents/Ps1-Emulator/tests/emulator_tests.cpp:
@@ -567,16 +576,6 @@ libps1emu_core.a:
 
 /usr/include/c++/15/vector:
 
-/home/jessie/Documents/Ps1-Emulator/src/core/mmio.h:
-
-/usr/include/c++/15/bits/basic_ios.tcc:
-
-/usr/include/c++/15/bits/align.h:
-
-/usr/include/x86_64-linux-gnu/bits/stdlib-float.h:
-
-/home/jessie/Documents/Ps1-Emulator/src/core/gpu_packets.h:
-
 /usr/include/c++/15/ext/aligned_buffer.h:
 
 /usr/include/c++/15/cwctype:
@@ -586,6 +585,12 @@ libps1emu_core.a:
 /usr/include/c++/15/bits/ostream_insert.h:
 
 /home/jessie/Documents/Ps1-Emulator/src/core/cdrom_image.h:
+
+/home/jessie/Documents/Ps1-Emulator/src/core/gpu_packets.h:
+
+/usr/include/c++/15/bits/align.h:
+
+/usr/include/x86_64-linux-gnu/bits/stdlib-float.h:
 
 /usr/include/c++/15/bits/memory_resource.h:
 
@@ -601,23 +606,21 @@ libps1emu_core.a:
 
 /usr/include/x86_64-linux-gnu/bits/pthreadtypes-arch.h:
 
+/usr/include/c++/15/bits/basic_ios.tcc:
+
+/home/jessie/Documents/Ps1-Emulator/src/core/mmio.h:
+
 /usr/include/c++/15/bits/unique_ptr.h:
 
 /usr/include/x86_64-linux-gnu/bits/types/locale_t.h:
 
-/usr/include/c++/15/bits/exception_ptr.h:
-
-/usr/include/c++/15/ext/concurrence.h:
+/home/jessie/Documents/Ps1-Emulator/src/core/gte.h:
 
 /usr/include/x86_64-linux-gnu/bits/types/__FILE.h:
 
 /usr/include/c++/15/bits/postypes.h:
 
 /usr/include/x86_64-linux-gnu/asm/posix_types.h:
-
-/home/jessie/Documents/Ps1-Emulator/src/core/scheduler.h:
-
-/usr/include/c++/15/bits/stl_iterator_base_types.h:
 
 /usr/include/stdc-predef.h:
 
@@ -669,10 +672,6 @@ libps1emu_core.a:
 
 /usr/include/c++/15/backward/binders.h:
 
-/usr/include/c++/15/bits/allocated_ptr.h:
-
-/usr/include/c++/15/bits/istream.tcc:
-
 /usr/include/c++/15/bits/shared_ptr_atomic.h:
 
 /usr/include/c++/15/compare:
@@ -706,6 +705,10 @@ libps1emu_core.a:
 /usr/include/c++/15/bits/ios_base.h:
 
 /usr/include/wchar.h:
+
+/usr/include/c++/15/bits/exception_ptr.h:
+
+/usr/include/c++/15/ext/concurrence.h:
 
 /usr/include/c++/15/ext/numeric_traits.h:
 

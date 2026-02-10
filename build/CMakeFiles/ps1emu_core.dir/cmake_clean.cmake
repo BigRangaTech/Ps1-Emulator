@@ -19,6 +19,8 @@ file(REMOVE_RECURSE
   "CMakeFiles/ps1emu_core.dir/src/core/gpu_commands.cpp.o.d"
   "CMakeFiles/ps1emu_core.dir/src/core/gpu_packets.cpp.o"
   "CMakeFiles/ps1emu_core.dir/src/core/gpu_packets.cpp.o.d"
+  "CMakeFiles/ps1emu_core.dir/src/core/gte.cpp.o"
+  "CMakeFiles/ps1emu_core.dir/src/core/gte.cpp.o.d"
   "CMakeFiles/ps1emu_core.dir/src/core/memory_map.cpp.o"
   "CMakeFiles/ps1emu_core.dir/src/core/memory_map.cpp.o.d"
   "CMakeFiles/ps1emu_core.dir/src/core/mmio.cpp.o"

@@ -3,6 +3,7 @@
 
 #include "core/cpu_state.h"
 #include "core/dynarec.h"
+#include "core/gte.h"
 #include "core/memory_map.h"
 #include "core/scheduler.h"
 
@@ -59,6 +60,7 @@ private:
   CpuState state_;
   DynarecCache dynarec_cache_;
   std::unique_ptr<DynarecBackend> dynarec_backend_;
+  Gte gte_;
   PendingLoad load_delay_;
   bool load_delay_shadow_valid_ = false;
   uint32_t load_delay_shadow_reg_ = 0;

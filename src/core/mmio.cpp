@@ -6,10 +6,8 @@ namespace ps1emu {
 
 void MmioBus::reset() {
   std::memset(raw_.data(), 0, raw_.size());
-  gpu_gp0_ = 0;
-  gpu_gp1_ = 0x14802000;
-  gpu_gp0_fifo_.clear();
   gpu_gp1_fifo_.clear();
+  reset_gpu_state();
   irq_stat_ = 0;
   irq_mask_ = 0;
   std::memset(dma_madr_, 0, sizeof(dma_madr_));
@@ -38,6 +36,130 @@ void MmioBus::reset() {
   std::memset(timer_irq_on_overflow_, 0, sizeof(timer_irq_on_overflow_));
   std::memset(timer_irq_on_target_, 0, sizeof(timer_irq_on_target_));
   dma_active_channel_ = 0xFFFFFFFFu;
+}
+
+void MmioBus::reset_gpu_state() {
+  gpu_gp0_ = 0;
+  gpu_gp1_ = 0x14802000;
+  gpu_gp0_fifo_.clear();
+  gpu_read_fifo_.clear();
+  gpu_read_latch_ = 0;
+  gpu_texpage_x_ = 0;
+  gpu_texpage_y_ = 0;
+  gpu_semi_ = 0;
+  gpu_tex_depth_ = 0;
+  gpu_dither_ = false;
+  gpu_draw_to_display_ = false;
+  gpu_mask_set_ = false;
+  gpu_mask_eval_ = false;
+  gpu_display_disabled_ = true;
+  gpu_irq_ = false;
+  gpu_interlace_ = false;
+  gpu_flip_ = false;
+  gpu_hres2_ = false;
+  gpu_hres1_ = 0;
+  gpu_vres_ = false;
+  gpu_vmode_pal_ = false;
+  gpu_display_depth24_ = false;
+  gpu_dma_dir_ = 0;
+  gpu_field_ = false;
+  gpu_tex_window_ = 0;
+  gpu_draw_area_tl_ = 0;
+  gpu_draw_area_br_ = (0x3FFu) | (0x1FFu << 10);
+  gpu_draw_offset_ = 0;
+  irq_stat_ &= static_cast<uint16_t>(~(1u << 1));
+}
+
+uint32_t MmioBus::compute_gpustat() const {
+  uint32_t stat = 0;
+  stat |= (gpu_texpage_x_ & 0xFu);
+  stat |= (gpu_texpage_y_ & 0x1u) << 4;
+  stat |= (gpu_semi_ & 0x3u) << 5;
+  stat |= (gpu_tex_depth_ & 0x3u) << 7;
+  if (gpu_dither_) {
+    stat |= (1u << 9);
+  }
+  if (gpu_draw_to_display_) {
+    stat |= (1u << 10);
+  }
+  if (gpu_mask_set_) {
+    stat |= (1u << 11);
+  }
+  if (gpu_mask_eval_) {
+    stat |= (1u << 12);
+  }
+  uint32_t field = gpu_field_ ? 1u : 0u;
+  uint32_t interlace_field = gpu_interlace_ ? field : 1u;
+  if (interlace_field) {
+    stat |= (1u << 13);
+  }
+  if (gpu_flip_) {
+    stat |= (1u << 14);
+  }
+  stat |= ((gpu_texpage_y_ >> 1) & 0x1u) << 15;
+  if (gpu_hres2_) {
+    stat |= (1u << 16);
+  }
+  stat |= (gpu_hres1_ & 0x3u) << 17;
+  if (gpu_vres_) {
+    stat |= (1u << 19);
+  }
+  if (gpu_vmode_pal_) {
+    stat |= (1u << 20);
+  }
+  if (gpu_display_depth24_) {
+    stat |= (1u << 21);
+  }
+  if (gpu_interlace_) {
+    stat |= (1u << 22);
+  }
+  if (gpu_display_disabled_) {
+    stat |= (1u << 23);
+  }
+  if (gpu_irq_) {
+    stat |= (1u << 24);
+  }
+
+  bool ready_cmd = true;
+  bool ready_vram_to_cpu = !gpu_read_fifo_.empty();
+  bool ready_dma_block = true;
+
+  if (ready_cmd) {
+    stat |= (1u << 26);
+  }
+  if (ready_vram_to_cpu) {
+    stat |= (1u << 27);
+  }
+  if (ready_dma_block) {
+    stat |= (1u << 28);
+  }
+  stat |= (gpu_dma_dir_ & 0x3u) << 29;
+  if (field) {
+    stat |= (1u << 31);
+  }
+
+  uint32_t dma_req = 0;
+  switch (gpu_dma_dir_ & 0x3u) {
+    case 0:
+      dma_req = 0;
+      break;
+    case 1:
+      dma_req = ready_cmd ? 1u : 0u;
+      break;
+    case 2:
+      dma_req = ready_vram_to_cpu ? 1u : 0u;
+      break;
+    case 3:
+      dma_req = 1;
+      break;
+    default:
+      dma_req = 0;
+      break;
+  }
+  if (dma_req) {
+    stat |= (1u << 25);
+  }
+  return stat;
 }
 
 static uint8_t bcd_to_int(uint8_t value) {
@@ -292,10 +414,14 @@ uint32_t MmioBus::read32(uint32_t addr) {
     return irq_mask_;
   }
   if (addr == 0x1F801810) { // GPU GP0
-    return gpu_gp0_;
+    if (!gpu_read_fifo_.empty()) {
+      gpu_read_latch_ = gpu_read_fifo_.front();
+      gpu_read_fifo_.erase(gpu_read_fifo_.begin());
+    }
+    return gpu_read_latch_;
   }
   if (addr == 0x1F801814) { // GPU GP1
-    return gpu_gp1_;
+    return compute_gpustat();
   }
 
   if (addr >= 0x1F801080 && addr < 0x1F8010F0) { // DMA channels
@@ -445,6 +571,88 @@ void MmioBus::write32(uint32_t addr, uint32_t value) {
   } else if (addr == 0x1F801814) { // GPU GP1
     gpu_gp1_ = value;
     gpu_gp1_fifo_.push_back(value);
+    uint8_t cmd = static_cast<uint8_t>(value >> 24);
+    switch (cmd) {
+      case 0x00: { // Reset GPU
+        reset_gpu_state();
+        break;
+      }
+      case 0x01: { // Reset command buffer
+        gpu_gp0_fifo_.clear();
+        gpu_read_fifo_.clear();
+        gpu_read_latch_ = 0;
+        break;
+      }
+      case 0x02: { // Ack GPU IRQ
+        gpu_irq_ = false;
+        irq_stat_ &= static_cast<uint16_t>(~(1u << 1));
+        break;
+      }
+      case 0x03: { // Display enable (0=on,1=off)
+        gpu_display_disabled_ = (value & 0x1u) != 0;
+        break;
+      }
+      case 0x04: { // DMA direction
+        gpu_dma_dir_ = value & 0x3u;
+        break;
+      }
+      case 0x08: { // Display mode
+        gpu_hres1_ = value & 0x3u;
+        gpu_vres_ = (value & (1u << 2)) != 0;
+        gpu_vmode_pal_ = (value & (1u << 3)) != 0;
+        gpu_display_depth24_ = (value & (1u << 4)) != 0;
+        gpu_interlace_ = (value & (1u << 5)) != 0;
+        gpu_hres2_ = (value & (1u << 6)) != 0;
+        gpu_flip_ = (value & (1u << 7)) != 0;
+        break;
+      }
+      case 0x10:
+      case 0x11:
+      case 0x12:
+      case 0x13:
+      case 0x14:
+      case 0x15:
+      case 0x16:
+      case 0x17:
+      case 0x18:
+      case 0x19:
+      case 0x1A:
+      case 0x1B:
+      case 0x1C:
+      case 0x1D:
+      case 0x1E:
+      case 0x1F: { // Get GPU info
+        uint32_t index = value & 0x0Fu;
+        uint32_t response = 0;
+        bool has_response = true;
+        switch (index) {
+          case 0x02:
+            response = gpu_tex_window_ & 0x00FFFFFFu;
+            break;
+          case 0x03:
+            response = gpu_draw_area_tl_ & 0x00FFFFFFu;
+            break;
+          case 0x04:
+            response = gpu_draw_area_br_ & 0x00FFFFFFu;
+            break;
+          case 0x05:
+            response = gpu_draw_offset_ & 0x00FFFFFFu;
+            break;
+          case 0x07:
+            response = 2;
+            break;
+          default:
+            has_response = false;
+            break;
+        }
+        if (has_response) {
+          queue_gpu_read_data({response});
+        }
+        break;
+      }
+      default:
+        break;
+    }
   }
 
   if (addr >= 0x1F801080 && addr < 0x1F8010F0) {
@@ -632,6 +840,62 @@ std::vector<uint32_t> MmioBus::take_gpu_control() {
   std::vector<uint32_t> out;
   out.swap(gpu_gp1_fifo_);
   return out;
+}
+
+void MmioBus::apply_gp0_state(uint32_t word) {
+  uint8_t cmd = static_cast<uint8_t>(word >> 24);
+  switch (cmd) {
+    case 0xE1: { // Draw mode
+      uint32_t mode = word & 0x00FFFFFFu;
+      gpu_texpage_x_ = mode & 0xFu;
+      gpu_texpage_y_ = ((mode >> 4) & 0x1u) | (((mode >> 11) & 0x1u) << 1);
+      gpu_semi_ = (mode >> 5) & 0x3u;
+      gpu_tex_depth_ = (mode >> 7) & 0x3u;
+      gpu_dither_ = (mode & (1u << 9)) != 0;
+      gpu_draw_to_display_ = (mode & (1u << 10)) != 0;
+      break;
+    }
+    case 0xE2: { // Texture window
+      gpu_tex_window_ = word & 0x00FFFFFFu;
+      break;
+    }
+    case 0xE3: { // Draw area top-left
+      gpu_draw_area_tl_ = word & 0x00FFFFFFu;
+      break;
+    }
+    case 0xE4: { // Draw area bottom-right
+      gpu_draw_area_br_ = word & 0x00FFFFFFu;
+      break;
+    }
+    case 0xE5: { // Draw offset
+      gpu_draw_offset_ = word & 0x00FFFFFFu;
+      break;
+    }
+    case 0xE6: { // Mask bit
+      gpu_mask_set_ = (word & 0x1u) != 0;
+      gpu_mask_eval_ = (word & 0x2u) != 0;
+      break;
+    }
+    case 0x1F: { // Interrupt request
+      gpu_irq_ = true;
+      irq_stat_ |= (1u << 1);
+      break;
+    }
+    default:
+      break;
+  }
+}
+
+void MmioBus::queue_gpu_read_data(std::vector<uint32_t> words) {
+  if (words.empty()) {
+    return;
+  }
+  if (gpu_read_fifo_.empty()) {
+    gpu_read_latch_ = words.front();
+  }
+  for (uint32_t word : words) {
+    gpu_read_fifo_.push_back(word);
+  }
 }
 
 } // namespace ps1emu

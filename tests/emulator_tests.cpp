@@ -218,6 +218,63 @@ static bool test_mmio_gpu_fifo() {
   return true;
 }
 
+static bool test_gpu_status_bits() {
+  ps1emu::MmioBus mmio;
+  mmio.reset();
+
+  uint32_t stat = mmio.read32(0x1F801814);
+  CHECK(stat == 0x14802000);
+
+  uint32_t mode = 0;
+  mode |= 5u;
+  mode |= (1u << 4);
+  mode |= (2u << 5);
+  mode |= (1u << 7);
+  mode |= (1u << 9);
+  mode |= (1u << 10);
+  mode |= (1u << 11);
+  mmio.apply_gp0_state(0xE1000000u | mode);
+
+  stat = mmio.read32(0x1F801814);
+  CHECK((stat & 0xFu) == 5);
+  CHECK((stat & (1u << 4)) != 0);
+  CHECK(((stat >> 5) & 0x3u) == 2);
+  CHECK(((stat >> 7) & 0x3u) == 1);
+  CHECK((stat & (1u << 9)) != 0);
+  CHECK((stat & (1u << 10)) != 0);
+  CHECK((stat & (1u << 15)) != 0);
+
+  mmio.write32(0x1F801814, 0x080000FFu);
+  stat = mmio.read32(0x1F801814);
+  CHECK((stat & (1u << 16)) != 0);
+  CHECK(((stat >> 17) & 0x3u) == 3);
+  CHECK((stat & (1u << 19)) != 0);
+  CHECK((stat & (1u << 20)) != 0);
+  CHECK((stat & (1u << 21)) != 0);
+  CHECK((stat & (1u << 22)) != 0);
+  CHECK((stat & (1u << 14)) != 0);
+  return true;
+}
+
+static bool test_gpu_read_fifo() {
+  ps1emu::MmioBus mmio;
+  mmio.reset();
+
+  CHECK((mmio.read32(0x1F801814) & (1u << 27)) == 0);
+  mmio.queue_gpu_read_data({0x11223344u, 0x55667788u});
+  CHECK((mmio.read32(0x1F801814) & (1u << 27)) != 0);
+
+  uint32_t first = mmio.read32(0x1F801810);
+  uint32_t second = mmio.read32(0x1F801810);
+  CHECK(first == 0x11223344u);
+  CHECK(second == 0x55667788u);
+
+  CHECK((mmio.read32(0x1F801814) & (1u << 27)) == 0);
+  uint32_t latched = mmio.read32(0x1F801810);
+  CHECK(latched == 0x55667788u);
+  return true;
+}
+
 static bool test_dma_irq() {
   ps1emu::MmioBus mmio;
   mmio.reset();
@@ -521,6 +578,8 @@ int main() {
       {"load_delay", test_load_delay},
       {"branch_delay", test_branch_delay},
       {"mmio_gpu_fifo", test_mmio_gpu_fifo},
+      {"gpu_status_bits", test_gpu_status_bits},
+      {"gpu_read_fifo", test_gpu_read_fifo},
       {"dma_irq", test_dma_irq},
       {"timer_irq_on_target", test_timer_irq_on_target},
       {"gpu_packet_parsing", test_gpu_packet_parsing},

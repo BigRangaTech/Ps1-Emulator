@@ -208,7 +208,9 @@ CMakeFiles/ps1emu_gui.dir/src/ui/gui_main.cpp.o: \
  /usr/include/c++/15/bits/enable_special_members.h \
  /usr/include/c++/15/bits/node_handle.h \
  /usr/include/c++/15/bits/erase_if.h \
+ /home/jessie/Documents/Ps1-Emulator/src/core/gte.h \
  /home/jessie/Documents/Ps1-Emulator/src/core/scheduler.h \
+ /home/jessie/Documents/Ps1-Emulator/src/core/gpu_packets.h \
  /home/jessie/Documents/Ps1-Emulator/src/plugins/plugin_host.h \
  /home/jessie/Documents/Ps1-Emulator/src/plugins/ipc.h \
  /usr/include/SDL2/SDL.h /usr/include/SDL2/SDL_main.h \

@@ -18,6 +18,7 @@ set(CMAKE_DEPENDS_DEPENDENCY_FILES
   "/home/jessie/Documents/Ps1-Emulator/src/core/emu_core.cpp" "CMakeFiles/ps1emu_core.dir/src/core/emu_core.cpp.o" "gcc" "CMakeFiles/ps1emu_core.dir/src/core/emu_core.cpp.o.d"
   "/home/jessie/Documents/Ps1-Emulator/src/core/gpu_commands.cpp" "CMakeFiles/ps1emu_core.dir/src/core/gpu_commands.cpp.o" "gcc" "CMakeFiles/ps1emu_core.dir/src/core/gpu_commands.cpp.o.d"
   "/home/jessie/Documents/Ps1-Emulator/src/core/gpu_packets.cpp" "CMakeFiles/ps1emu_core.dir/src/core/gpu_packets.cpp.o" "gcc" "CMakeFiles/ps1emu_core.dir/src/core/gpu_packets.cpp.o.d"
+  "/home/jessie/Documents/Ps1-Emulator/src/core/gte.cpp" "CMakeFiles/ps1emu_core.dir/src/core/gte.cpp.o" "gcc" "CMakeFiles/ps1emu_core.dir/src/core/gte.cpp.o.d"
   "/home/jessie/Documents/Ps1-Emulator/src/core/memory_map.cpp" "CMakeFiles/ps1emu_core.dir/src/core/memory_map.cpp.o" "gcc" "CMakeFiles/ps1emu_core.dir/src/core/memory_map.cpp.o.d"
   "/home/jessie/Documents/Ps1-Emulator/src/core/mmio.cpp" "CMakeFiles/ps1emu_core.dir/src/core/mmio.cpp.o" "gcc" "CMakeFiles/ps1emu_core.dir/src/core/mmio.cpp.o.d"
   "/home/jessie/Documents/Ps1-Emulator/src/core/scheduler.cpp" "CMakeFiles/ps1emu_core.dir/src/core/scheduler.cpp.o" "gcc" "CMakeFiles/ps1emu_core.dir/src/core/scheduler.cpp.o.d"

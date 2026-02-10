@@ -11,6 +11,8 @@ CMakeFiles/ps1emu_gui.dir/src/ui/gui_app.cpp.o: /home/jessie/Documents/Ps1-Emula
   /home/jessie/Documents/Ps1-Emulator/src/core/cpu_state.h \
   /home/jessie/Documents/Ps1-Emulator/src/core/dynarec.h \
   /home/jessie/Documents/Ps1-Emulator/src/core/emu_core.h \
+  /home/jessie/Documents/Ps1-Emulator/src/core/gpu_packets.h \
+  /home/jessie/Documents/Ps1-Emulator/src/core/gte.h \
   /home/jessie/Documents/Ps1-Emulator/src/core/memory_map.h \
   /home/jessie/Documents/Ps1-Emulator/src/core/mmio.h \
   /home/jessie/Documents/Ps1-Emulator/src/core/scheduler.h \
@@ -493,6 +495,8 @@ CMakeFiles/ps1emu_gui.dir/src/ui/gui_main.cpp.o: /home/jessie/Documents/Ps1-Emul
   /home/jessie/Documents/Ps1-Emulator/src/core/cpu_state.h \
   /home/jessie/Documents/Ps1-Emulator/src/core/dynarec.h \
   /home/jessie/Documents/Ps1-Emulator/src/core/emu_core.h \
+  /home/jessie/Documents/Ps1-Emulator/src/core/gpu_packets.h \
+  /home/jessie/Documents/Ps1-Emulator/src/core/gte.h \
   /home/jessie/Documents/Ps1-Emulator/src/core/memory_map.h \
   /home/jessie/Documents/Ps1-Emulator/src/core/mmio.h \
   /home/jessie/Documents/Ps1-Emulator/src/core/scheduler.h \
@@ -1713,6 +1717,10 @@ CMakeFiles/ps1emu_gui.dir/src/ui/gui_main.cpp.o:
 
 /usr/lib/gcc/x86_64-linux-gnu/15/include/x86gprintrin.h:
 
+/lib/x86_64-linux-gnu/libXi.so.6:
+
+/usr/include/c++/15/vector:
+
 /usr/include/c++/15/memory:
 
 /usr/include/c++/15/bits/stl_bvector.h:
@@ -1777,13 +1785,13 @@ CMakeFiles/ps1emu_gui.dir/src/ui/gui_main.cpp.o:
 
 /lib/i386-linux-gnu/libmp3lame.so.0:
 
+/usr/include/SDL2/SDL_scancode.h:
+
 /usr/include/c++/15/tr1/legendre_function.tcc:
 
 /usr/include/x86_64-linux-gnu/bits/mathcalls-helper-functions.h:
 
 /usr/include/SDL2/SDL_surface.h:
-
-/usr/include/SDL2/SDL_scancode.h:
 
 /usr/include/c++/15/tr1/poly_hermite.tcc:
 
@@ -1877,10 +1885,6 @@ CMakeFiles/ps1emu_gui.dir/src/ui/gui_main.cpp.o:
 
 /usr/include/x86_64-linux-gnu/c++/15/bits/ctype_base.h:
 
-/usr/include/c++/15/bits/stl_iterator_base_types.h:
-
-/home/jessie/Documents/Ps1-Emulator/src/core/scheduler.h:
-
 /usr/include/SDL2/SDL_audio.h:
 
 /usr/lib/i386-linux-gnu/libffi.so.8:
@@ -1909,6 +1913,8 @@ CMakeFiles/ps1emu_gui.dir/src/ui/gui_main.cpp.o:
 
 /home/jessie/Documents/Ps1-Emulator/src/core/memory_map.h:
 
+/home/jessie/Documents/Ps1-Emulator/src/core/gte.h:
+
 /usr/include/SDL2/SDL_haptic.h:
 
 /usr/lib/gcc/x86_64-linux-gnu/15/include/amxfp8intrin.h:
@@ -1935,18 +1941,6 @@ CMakeFiles/ps1emu_gui.dir/src/ui/gui_main.cpp.o:
 
 /usr/include/x86_64-linux-gnu/asm/posix_types.h:
 
-/usr/include/c++/15/ext/atomicity.h:
-
-/usr/include/c++/15/ext/concurrence.h:
-
-/usr/include/c++/15/bits/exception_ptr.h:
-
-/usr/lib/i386-linux-gnu/libXdmcp.so.6:
-
-/usr/lib/gcc/x86_64-linux-gnu/15/include/keylockerintrin.h:
-
-/usr/include/SDL2/SDL_events.h:
-
 /usr/include/x86_64-linux-gnu/c++/15/bits/cpu_defines.h:
 
 /home/jessie/Documents/Ps1-Emulator/src/core/dynarec.h:
@@ -1963,13 +1957,19 @@ CMakeFiles/ps1emu_gui.dir/src/ui/gui_main.cpp.o:
 
 /home/jessie/Documents/Ps1-Emulator/include/ps1emu/sandbox.h:
 
-/usr/lib/i386-linux-gnu/libXrandr.so.2:
+/usr/include/c++/15/ext/atomicity.h:
 
-/usr/include/SDL2/SDL_config.h:
+/usr/include/c++/15/ext/concurrence.h:
 
-/usr/include/c++/15/bits/locale_facets_nonio.h:
+/usr/include/c++/15/bits/exception_ptr.h:
 
-/usr/include/x86_64-linux-gnu/c++/15/bits/atomic_word.h:
+/usr/lib/i386-linux-gnu/libXdmcp.so.6:
+
+/usr/lib/gcc/x86_64-linux-gnu/15/include/keylockerintrin.h:
+
+/usr/include/SDL2/SDL_events.h:
+
+/home/jessie/Documents/Ps1-Emulator/src/core/gpu_packets.h:
 
 /lib64/ld-linux-x86-64.so.2:
 
@@ -1986,6 +1986,18 @@ CMakeFiles/ps1emu_gui.dir/src/ui/gui_main.cpp.o:
 /usr/include/ctype.h:
 
 /usr/lib/gcc/x86_64-linux-gnu/15/include/avxintrin.h:
+
+/usr/include/c++/15/bits/stl_iterator_base_types.h:
+
+/home/jessie/Documents/Ps1-Emulator/src/core/scheduler.h:
+
+/usr/include/c++/15/bits/locale_facets_nonio.h:
+
+/usr/include/x86_64-linux-gnu/c++/15/bits/atomic_word.h:
+
+/usr/lib/i386-linux-gnu/libXrandr.so.2:
+
+/usr/include/SDL2/SDL_config.h:
 
 /usr/include/x86_64-linux-gnu/bits/time64.h:
 
@@ -2021,15 +2033,25 @@ CMakeFiles/ps1emu_gui.dir/src/ui/gui_main.cpp.o:
 
 /usr/include/x86_64-linux-gnu/c++/15/bits/gthr.h:
 
+/usr/include/SDL2/SDL_log.h:
+
+/usr/include/c++/15/tr1/beta_function.tcc:
+
+/usr/include/c++/15/bits/nested_exception.h:
+
+/usr/include/c++/15/bits/memoryfwd.h:
+
+/usr/include/c++/15/bits/fstream.tcc:
+
+/usr/lib/i386-linux-gnu/libXcursor.so.1:
+
+/usr/include/asm-generic/int-ll64.h:
+
 /usr/include/SDL2/SDL_gamecontroller.h:
 
 /usr/include/x86_64-linux-gnu/bits/types/timer_t.h:
 
 /usr/include/SDL2/SDL_system.h:
-
-/usr/include/c++/15/vector:
-
-/lib/x86_64-linux-gnu/libXi.so.6:
 
 /usr/include/SDL2/SDL_rect.h:
 
@@ -2159,18 +2181,6 @@ libps1emu_core.a:
 
 /usr/include/c++/15/initializer_list:
 
-/usr/include/sched.h:
-
-/usr/lib/gcc/x86_64-linux-gnu/15/include/ia32intrin.h:
-
-/usr/include/wctype.h:
-
-/usr/include/c++/15/bits/fstream.tcc:
-
-/usr/include/c++/15/bits/nested_exception.h:
-
-/usr/include/c++/15/bits/memoryfwd.h:
-
 /usr/include/c++/15/bits/invoke.h:
 
 /usr/include/c++/15/bits/shared_ptr.h:
@@ -2203,13 +2213,11 @@ libps1emu_core.a:
 
 /usr/include/c++/15/bits/locale_conv.h:
 
-/usr/include/SDL2/SDL_log.h:
+/usr/include/sched.h:
 
-/usr/include/c++/15/tr1/beta_function.tcc:
+/usr/lib/gcc/x86_64-linux-gnu/15/include/ia32intrin.h:
 
-/usr/lib/i386-linux-gnu/libXcursor.so.1:
-
-/usr/include/asm-generic/int-ll64.h:
+/usr/include/wctype.h:
 
 /usr/include/c++/15/tr1/ell_integral.tcc:
 
@@ -2436,6 +2444,12 @@ CMakeFiles/ps1emu_gui.dir/src/ui/gui_app.cpp.o:
 /usr/include/x86_64-linux-gnu/gnu/stubs.h:
 
 /usr/include/x86_64-linux-gnu/sys/select.h:
+
+/usr/lib/i386-linux-gnu/libglib-2.0.so.0:
+
+/lib/x86_64-linux-gnu/libXfixes.so.3:
+
+/usr/include/x86_64-linux-gnu/sys/types.h:
 
 /usr/lib/gcc/x86_64-linux-gnu/15/include/amxfp16intrin.h:
 
@@ -2714,9 +2728,3 @@ CMakeFiles/ps1emu_gui.dir/src/ui/gui_app.cpp.o:
 /lib/x86_64-linux-gnu/libXau.so.6:
 
 /lib/x86_64-linux-gnu/libXcursor.so.1:
-
-/usr/lib/i386-linux-gnu/libglib-2.0.so.0:
-
-/usr/include/x86_64-linux-gnu/sys/types.h:
-
-/lib/x86_64-linux-gnu/libXfixes.so.3:
