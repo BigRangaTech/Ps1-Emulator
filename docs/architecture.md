@@ -59,3 +59,10 @@
 - VRAM image transfers respect mask bit settings (write mask + mask test).
 - DMA channel 2 supports linked-list mode (GP0 command chains).
 - GPU DMA packets are queued and drained based on GPUSTAT ready/busy to simulate backpressure.
+
+## CD-ROM Stub Notes
+- The MMIO layer implements a wider command set (Sync/Getstat/Setloc/ReadN/ReadS/Stop/Pause/Init/Setmode/Getparam/GetlocL/GetlocP/SetSession/GetTN/GetTD/Seek/GetID/Test/ReadTOC/Mute/Demute/Reset).
+- Read timing models 75 Hz sector cadence (double speed when mode bit `0x80` is set).
+- Data FIFO fills on read timer expiry and raises IRQ `0x02` for data-ready.
+- CD-ROM DMA (channel 3) only completes when data FIFO has data available.
+- Data reads return 2048-byte user data from ISO/BIN/CUE images with cue index offset handling.

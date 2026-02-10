@@ -45,7 +45,7 @@ cmake --build build -j
 - GPU: validate interlace field cadence and display range interaction.
 - GPU: validate DMA backpressure draining behavior against real timing.
 - Tests: add coverage for each module as new features land (CPU/GPU/CD-ROM/SPU/Input).
-- CD-ROM: full command set, sector timing, XA audio stub, DMA pacing.
+- CD-ROM: finalize command semantics (GetID/ReadTOC/Seek timing), raw sector modes, XA audio stub, and IRQ/DRQ gating.
 - SPU: mixing + ADPCM decode, timing and IRQs.
 - Input: controller polling with mapping layer, hotplug.
 - Boot: BIOS logo + shell boot, load first game scene.

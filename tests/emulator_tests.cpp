@@ -128,6 +128,33 @@ static bool write_binary_file(const std::string &path, const std::vector<uint8_t
   return file.good();
 }
 
+static constexpr uint32_t kCdromReadPeriodCycles = 33868800 / 75;
+
+static std::vector<uint8_t> read_cdrom_response(ps1emu::MmioBus &mmio, size_t count) {
+  std::vector<uint8_t> out;
+  out.reserve(count);
+  for (size_t i = 0; i < count; ++i) {
+    out.push_back(mmio.read8(0x1F801801));
+  }
+  return out;
+}
+
+static uint8_t to_bcd(uint32_t value) {
+  value %= 100;
+  return static_cast<uint8_t>(((value / 10) << 4) | (value % 10));
+}
+
+static void lba_to_bcd(uint32_t lba, uint8_t &mm, uint8_t &ss, uint8_t &ff) {
+  uint32_t lba_adj = lba + 150;
+  uint32_t total_seconds = lba_adj / 75;
+  uint32_t frames = lba_adj % 75;
+  uint32_t minutes = total_seconds / 60;
+  uint32_t seconds = total_seconds % 60;
+  mm = to_bcd(minutes);
+  ss = to_bcd(seconds);
+  ff = to_bcd(frames);
+}
+
 static bool run_stub_handshake(const std::string &path, const std::string &name) {
   ps1emu::SandboxOptions sandbox;
   sandbox.enabled = false;
@@ -745,6 +772,8 @@ static bool test_cdrom_iso_read_mmio() {
   mmio.write8(0x1F801801, 0x06); // ReadN
   (void)mmio.read8(0x1F801801);
 
+  mmio.tick(kCdromReadPeriodCycles);
+
   uint8_t b0 = mmio.read8(0x1F801802);
   uint8_t b1 = mmio.read8(0x1F801802);
   uint8_t b2 = mmio.read8(0x1F801802);
@@ -790,8 +819,90 @@ static bool test_cdrom_cue_read_mmio() {
   mmio.write8(0x1F801801, 0x06);
   (void)mmio.read8(0x1F801801);
 
+  mmio.tick(kCdromReadPeriodCycles);
+
   uint8_t b0 = mmio.read8(0x1F801802);
   CHECK(b0 == 0x31);
+  return true;
+}
+
+static bool test_cdrom_param_filter_roundtrip() {
+  ps1emu::MmioBus mmio;
+  mmio.reset();
+
+  mmio.write8(0x1F801802, 0xA5);
+  mmio.write8(0x1F801801, 0x0E); // Setmode
+  (void)mmio.read8(0x1F801801);
+
+  mmio.write8(0x1F801802, 0x12);
+  mmio.write8(0x1F801802, 0x34);
+  mmio.write8(0x1F801801, 0x0D); // Setfilter
+  (void)mmio.read8(0x1F801801);
+
+  mmio.write8(0x1F801801, 0x0F); // Getparam
+  std::vector<uint8_t> resp = read_cdrom_response(mmio, 4);
+  CHECK(resp.size() == 4);
+  CHECK(resp[1] == 0xA5);
+  CHECK(resp[2] == 0x12);
+  CHECK(resp[3] == 0x34);
+  return true;
+}
+
+static bool test_cdrom_loc_and_tracks() {
+  ScopedTempFile iso("/tmp/ps1emu_loc.iso");
+  std::vector<uint8_t> data(2048 * 2, 0x5A);
+  CHECK(write_binary_file(iso.path, data));
+
+  ps1emu::MmioBus mmio;
+  mmio.reset();
+  std::string error;
+  CHECK(mmio.load_cdrom_image(iso.path, error));
+
+  mmio.write8(0x1F801802, 0x00);
+  mmio.write8(0x1F801802, 0x02);
+  mmio.write8(0x1F801802, 0x00);
+  mmio.write8(0x1F801801, 0x02); // Setloc
+  (void)mmio.read8(0x1F801801);
+
+  mmio.write8(0x1F801801, 0x06); // ReadN
+  (void)mmio.read8(0x1F801801);
+  mmio.tick(kCdromReadPeriodCycles);
+
+  mmio.write8(0x1F801801, 0x10); // GetlocL
+  std::vector<uint8_t> resp = read_cdrom_response(mmio, 4);
+  uint8_t mm = 0, ss = 0, ff = 0;
+  lba_to_bcd(0, mm, ss, ff);
+  CHECK(resp[1] == mm);
+  CHECK(resp[2] == ss);
+  CHECK(resp[3] == ff);
+
+  mmio.write8(0x1F801801, 0x11); // GetlocP
+  resp = read_cdrom_response(mmio, 4);
+  lba_to_bcd(1, mm, ss, ff);
+  CHECK(resp[1] == mm);
+  CHECK(resp[2] == ss);
+  CHECK(resp[3] == ff);
+
+  mmio.write8(0x1F801801, 0x13); // GetTN
+  resp = read_cdrom_response(mmio, 3);
+  CHECK(resp[1] == 0x01);
+  CHECK(resp[2] == 0x01);
+
+  mmio.write8(0x1F801802, 0x00);
+  mmio.write8(0x1F801801, 0x14); // GetTD track 0 (lead-out)
+  resp = read_cdrom_response(mmio, 4);
+  lba_to_bcd(1, mm, ss, ff);
+  CHECK(resp[1] == mm);
+  CHECK(resp[2] == ss);
+  CHECK(resp[3] == ff);
+
+  mmio.write8(0x1F801802, 0x01);
+  mmio.write8(0x1F801801, 0x14); // GetTD track 1 (start)
+  resp = read_cdrom_response(mmio, 4);
+  lba_to_bcd(0, mm, ss, ff);
+  CHECK(resp[1] == mm);
+  CHECK(resp[2] == ss);
+  CHECK(resp[3] == ff);
   return true;
 }
 
@@ -975,6 +1086,8 @@ static bool test_cdrom_dma_transfer() {
   mmio.write8(0x1F801801, 0x06); // ReadN
   (void)mmio.read8(0x1F801801);
 
+  mmio.tick(kCdromReadPeriodCycles);
+
   uint32_t madr = 0x00040000;
   mmio.write32(0x1F8010F4, (1u << 23) | (1u << (16 + 3)));
   mmio.write32(0x1F801080 + 0x10 * 3 + 0x0, madr);
@@ -1025,6 +1138,8 @@ int main() {
       {"memory_map_mmio", test_memory_map_mmio},
       {"cdrom_iso_read_mmio", test_cdrom_iso_read_mmio},
       {"cdrom_cue_read_mmio", test_cdrom_cue_read_mmio},
+      {"cdrom_param_filter_roundtrip", test_cdrom_param_filter_roundtrip},
+      {"cdrom_loc_and_tracks", test_cdrom_loc_and_tracks},
       {"stub_plugins_handshake", test_stub_plugins_handshake},
       {"gpu_pipeline_dma_integration", test_gpu_pipeline_dma_integration},
       {"gpu_dma_read_to_ram", test_gpu_dma_read_to_ram},

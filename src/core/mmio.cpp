@@ -5,6 +5,8 @@
 
 namespace ps1emu {
 
+static uint32_t cdrom_read_period_cycles(uint8_t mode);
+
 void MmioBus::reset() {
   std::memset(raw_.data(), 0, raw_.size());
   gpu_gp1_fifo_.clear();
@@ -37,7 +39,7 @@ void MmioBus::reset() {
   cdrom_playing_ = false;
   cdrom_muted_ = false;
   cdrom_read_timer_ = 0;
-  cdrom_read_period_ = 0;
+  cdrom_read_period_ = cdrom_read_period_cycles(cdrom_mode_);
   cdrom_last_read_lba_ = 0;
   cdrom_lba_ = 0;
   std::memset(timer_irq_enable_, 0, sizeof(timer_irq_enable_));
@@ -263,7 +265,9 @@ void MmioBus::cdrom_push_response(uint8_t value) {
 
 void MmioBus::cdrom_raise_irq(uint8_t flags) {
   cdrom_irq_flags_ = flags;
-  irq_stat_ |= (1u << 2);
+  if ((cdrom_irq_enable_ & flags) != 0) {
+    irq_stat_ |= (1u << 2);
+  }
 }
 
 static bool cdrom_fill_data_fifo(CdromImage &image,
@@ -323,6 +327,14 @@ void MmioBus::cdrom_execute_command(uint8_t cmd) {
   cdrom_response_fifo_.clear();
 
   switch (cmd) {
+    case 0x00: { // Sync
+      cdrom_push_response(cdrom_status_byte(cdrom_image_.loaded(),
+                                            cdrom_reading_,
+                                            !cdrom_data_fifo_.empty(),
+                                            cdrom_error_));
+      cdrom_raise_irq(0x01);
+      break;
+    }
     case 0x01: { // Getstat
       cdrom_push_response(cdrom_status_byte(cdrom_image_.loaded(),
                                             cdrom_reading_,
@@ -344,15 +356,54 @@ void MmioBus::cdrom_execute_command(uint8_t cmd) {
       cdrom_raise_irq(0x01);
       break;
     }
+    case 0x03: { // Play
+      cdrom_playing_ = true;
+      cdrom_reading_ = false;
+      cdrom_push_response(cdrom_status_byte(cdrom_image_.loaded(),
+                                            cdrom_reading_,
+                                            !cdrom_data_fifo_.empty(),
+                                            cdrom_error_));
+      cdrom_raise_irq(0x01);
+      break;
+    }
+    case 0x04: // Forward
+    case 0x05: { // Backward
+      cdrom_push_response(cdrom_status_byte(cdrom_image_.loaded(),
+                                            cdrom_reading_,
+                                            !cdrom_data_fifo_.empty(),
+                                            cdrom_error_));
+      cdrom_raise_irq(0x01);
+      break;
+    }
     case 0x06: // ReadN
     case 0x1B: { // ReadS
       cdrom_reading_ = true;
+      cdrom_playing_ = false;
+      cdrom_read_period_ = cdrom_read_period_cycles(cdrom_mode_);
+      cdrom_read_timer_ = std::max(1u, cdrom_read_period_);
       cdrom_data_fifo_.clear();
       if (!cdrom_image_.loaded()) {
         cdrom_error_ = true;
-      } else {
-        cdrom_fill_data_fifo(cdrom_image_, cdrom_lba_, cdrom_error_, cdrom_data_fifo_);
       }
+      cdrom_push_response(cdrom_status_byte(cdrom_image_.loaded(),
+                                            cdrom_reading_,
+                                            !cdrom_data_fifo_.empty(),
+                                            cdrom_error_));
+      cdrom_raise_irq(0x01);
+      break;
+    }
+    case 0x07: { // MotorOn
+      cdrom_push_response(cdrom_status_byte(cdrom_image_.loaded(),
+                                            cdrom_reading_,
+                                            !cdrom_data_fifo_.empty(),
+                                            cdrom_error_));
+      cdrom_raise_irq(0x01);
+      break;
+    }
+    case 0x08: { // Stop
+      cdrom_reading_ = false;
+      cdrom_playing_ = false;
+      cdrom_read_timer_ = 0;
       cdrom_push_response(cdrom_status_byte(cdrom_image_.loaded(),
                                             cdrom_reading_,
                                             !cdrom_data_fifo_.empty(),
@@ -362,6 +413,8 @@ void MmioBus::cdrom_execute_command(uint8_t cmd) {
     }
     case 0x09: { // Pause
       cdrom_reading_ = false;
+      cdrom_playing_ = false;
+      cdrom_read_timer_ = 0;
       cdrom_push_response(cdrom_status_byte(cdrom_image_.loaded(),
                                             cdrom_reading_,
                                             !cdrom_data_fifo_.empty(),
@@ -372,6 +425,43 @@ void MmioBus::cdrom_execute_command(uint8_t cmd) {
     case 0x0A: { // Init
       cdrom_mode_ = 0;
       cdrom_reading_ = false;
+      cdrom_playing_ = false;
+      cdrom_muted_ = false;
+      cdrom_filter_file_ = 0;
+      cdrom_filter_channel_ = 0;
+      cdrom_session_ = 1;
+      cdrom_read_timer_ = 0;
+      cdrom_read_period_ = cdrom_read_period_cycles(cdrom_mode_);
+      cdrom_push_response(cdrom_status_byte(cdrom_image_.loaded(),
+                                            cdrom_reading_,
+                                            !cdrom_data_fifo_.empty(),
+                                            cdrom_error_));
+      cdrom_raise_irq(0x01);
+      break;
+    }
+    case 0x0B: { // Mute
+      cdrom_muted_ = true;
+      cdrom_push_response(cdrom_status_byte(cdrom_image_.loaded(),
+                                            cdrom_reading_,
+                                            !cdrom_data_fifo_.empty(),
+                                            cdrom_error_));
+      cdrom_raise_irq(0x01);
+      break;
+    }
+    case 0x0C: { // Demute
+      cdrom_muted_ = false;
+      cdrom_push_response(cdrom_status_byte(cdrom_image_.loaded(),
+                                            cdrom_reading_,
+                                            !cdrom_data_fifo_.empty(),
+                                            cdrom_error_));
+      cdrom_raise_irq(0x01);
+      break;
+    }
+    case 0x0D: { // Setfilter
+      if (params.size() >= 2) {
+        cdrom_filter_file_ = params[0];
+        cdrom_filter_channel_ = params[1];
+      }
       cdrom_push_response(cdrom_status_byte(cdrom_image_.loaded(),
                                             cdrom_reading_,
                                             !cdrom_data_fifo_.empty(),
@@ -383,10 +473,149 @@ void MmioBus::cdrom_execute_command(uint8_t cmd) {
       if (!params.empty()) {
         cdrom_mode_ = params[0];
       }
+      cdrom_read_period_ = cdrom_read_period_cycles(cdrom_mode_);
       cdrom_push_response(cdrom_status_byte(cdrom_image_.loaded(),
                                             cdrom_reading_,
                                             !cdrom_data_fifo_.empty(),
                                             cdrom_error_));
+      cdrom_raise_irq(0x01);
+      break;
+    }
+    case 0x0F: { // Getparam
+      cdrom_push_response(cdrom_status_byte(cdrom_image_.loaded(),
+                                            cdrom_reading_,
+                                            !cdrom_data_fifo_.empty(),
+                                            cdrom_error_));
+      cdrom_push_response(cdrom_mode_);
+      cdrom_push_response(cdrom_filter_file_);
+      cdrom_push_response(cdrom_filter_channel_);
+      cdrom_raise_irq(0x01);
+      break;
+    }
+    case 0x10: { // GetlocL
+      uint8_t mm = 0, ss = 0, ff = 0;
+      lba_to_bcd(cdrom_last_read_lba_, mm, ss, ff);
+      cdrom_push_response(cdrom_status_byte(cdrom_image_.loaded(),
+                                            cdrom_reading_,
+                                            !cdrom_data_fifo_.empty(),
+                                            cdrom_error_));
+      cdrom_push_response(mm);
+      cdrom_push_response(ss);
+      cdrom_push_response(ff);
+      cdrom_raise_irq(0x01);
+      break;
+    }
+    case 0x11: { // GetlocP
+      uint8_t mm = 0, ss = 0, ff = 0;
+      lba_to_bcd(cdrom_lba_, mm, ss, ff);
+      cdrom_push_response(cdrom_status_byte(cdrom_image_.loaded(),
+                                            cdrom_reading_,
+                                            !cdrom_data_fifo_.empty(),
+                                            cdrom_error_));
+      cdrom_push_response(mm);
+      cdrom_push_response(ss);
+      cdrom_push_response(ff);
+      cdrom_raise_irq(0x01);
+      break;
+    }
+    case 0x12: { // SetSession
+      if (!params.empty()) {
+        cdrom_session_ = params[0];
+      }
+      cdrom_push_response(cdrom_status_byte(cdrom_image_.loaded(),
+                                            cdrom_reading_,
+                                            !cdrom_data_fifo_.empty(),
+                                            cdrom_error_));
+      cdrom_raise_irq(0x01);
+      break;
+    }
+    case 0x13: { // GetTN
+      cdrom_push_response(cdrom_status_byte(cdrom_image_.loaded(),
+                                            cdrom_reading_,
+                                            !cdrom_data_fifo_.empty(),
+                                            cdrom_error_));
+      if (cdrom_image_.loaded()) {
+        cdrom_push_response(0x01);
+        cdrom_push_response(0x01);
+      } else {
+        cdrom_push_response(0x00);
+        cdrom_push_response(0x00);
+      }
+      cdrom_raise_irq(0x01);
+      break;
+    }
+    case 0x14: { // GetTD
+      uint8_t track = params.empty() ? 0 : params[0];
+      uint32_t lba = 0;
+      if (cdrom_image_.loaded()) {
+        if (track == 0) {
+          lba = cdrom_image_.end_lba();
+        } else {
+          int32_t start = cdrom_image_.start_lba();
+          lba = start < 0 ? 0u : static_cast<uint32_t>(start);
+        }
+      }
+      uint8_t mm = 0, ss = 0, ff = 0;
+      lba_to_bcd(lba, mm, ss, ff);
+      cdrom_push_response(cdrom_status_byte(cdrom_image_.loaded(),
+                                            cdrom_reading_,
+                                            !cdrom_data_fifo_.empty(),
+                                            cdrom_error_));
+      cdrom_push_response(mm);
+      cdrom_push_response(ss);
+      cdrom_push_response(ff);
+      cdrom_raise_irq(0x01);
+      break;
+    }
+    case 0x15: // SeekL
+    case 0x16: { // SeekP
+      cdrom_reading_ = false;
+      cdrom_playing_ = false;
+      cdrom_read_timer_ = 0;
+      cdrom_push_response(cdrom_status_byte(cdrom_image_.loaded(),
+                                            cdrom_reading_,
+                                            !cdrom_data_fifo_.empty(),
+                                            cdrom_error_));
+      cdrom_raise_irq(0x01);
+      break;
+    }
+    case 0x17: { // SetClock
+      cdrom_push_response(cdrom_status_byte(cdrom_image_.loaded(),
+                                            cdrom_reading_,
+                                            !cdrom_data_fifo_.empty(),
+                                            cdrom_error_));
+      cdrom_raise_irq(0x01);
+      break;
+    }
+    case 0x18: { // GetClock
+      cdrom_push_response(cdrom_status_byte(cdrom_image_.loaded(),
+                                            cdrom_reading_,
+                                            !cdrom_data_fifo_.empty(),
+                                            cdrom_error_));
+      cdrom_push_response(0x00);
+      cdrom_push_response(0x00);
+      cdrom_push_response(0x00);
+      cdrom_push_response(0x00);
+      cdrom_raise_irq(0x01);
+      break;
+    }
+    case 0x19: { // Test
+      uint8_t sub = params.empty() ? 0 : params[0];
+      cdrom_push_response(cdrom_status_byte(cdrom_image_.loaded(),
+                                            cdrom_reading_,
+                                            !cdrom_data_fifo_.empty(),
+                                            cdrom_error_));
+      if (sub == 0x20) {
+        cdrom_push_response(0x98);
+        cdrom_push_response(0x06);
+        cdrom_push_response(0x19);
+        cdrom_push_response(0xC0);
+      } else {
+        cdrom_push_response(0x00);
+        cdrom_push_response(0x00);
+        cdrom_push_response(0x00);
+        cdrom_push_response(0x00);
+      }
       cdrom_raise_irq(0x01);
       break;
     }
@@ -399,6 +628,42 @@ void MmioBus::cdrom_execute_command(uint8_t cmd) {
       cdrom_push_response(0x20);
       cdrom_push_response(0x00);
       cdrom_push_response(0x00);
+      cdrom_raise_irq(0x01);
+      break;
+    }
+    case 0x1C: { // Reset
+      cdrom_mode_ = 0;
+      cdrom_reading_ = false;
+      cdrom_playing_ = false;
+      cdrom_muted_ = false;
+      cdrom_filter_file_ = 0;
+      cdrom_filter_channel_ = 0;
+      cdrom_read_timer_ = 0;
+      cdrom_read_period_ = cdrom_read_period_cycles(cdrom_mode_);
+      cdrom_push_response(cdrom_status_byte(cdrom_image_.loaded(),
+                                            cdrom_reading_,
+                                            !cdrom_data_fifo_.empty(),
+                                            cdrom_error_));
+      cdrom_raise_irq(0x01);
+      break;
+    }
+    case 0x1D: { // GetQ
+      cdrom_push_response(cdrom_status_byte(cdrom_image_.loaded(),
+                                            cdrom_reading_,
+                                            !cdrom_data_fifo_.empty(),
+                                            cdrom_error_));
+      cdrom_push_response(0x00);
+      cdrom_push_response(0x00);
+      cdrom_push_response(0x00);
+      cdrom_push_response(0x00);
+      cdrom_raise_irq(0x01);
+      break;
+    }
+    case 0x1E: { // ReadTOC
+      cdrom_push_response(cdrom_status_byte(cdrom_image_.loaded(),
+                                            cdrom_reading_,
+                                            !cdrom_data_fifo_.empty(),
+                                            cdrom_error_));
       cdrom_raise_irq(0x01);
       break;
     }
@@ -437,9 +702,7 @@ uint8_t MmioBus::read8(uint32_t addr) {
       return 0;
     }
     if (reg == 2) {
-      if (cdrom_data_fifo_.empty() && cdrom_reading_ && cdrom_image_.loaded() && !cdrom_error_) {
-        cdrom_fill_data_fifo(cdrom_image_, cdrom_lba_, cdrom_error_, cdrom_data_fifo_);
-      }
+      cdrom_maybe_fill_data();
       if (!cdrom_data_fifo_.empty()) {
         uint8_t value = cdrom_data_fifo_.front();
         cdrom_data_fifo_.erase(cdrom_data_fifo_.begin());
@@ -864,6 +1127,17 @@ void MmioBus::tick(uint32_t cycles) {
     }
   }
 
+  if (cdrom_reading_ && !cdrom_error_ && cdrom_image_.loaded()) {
+    if (cdrom_data_fifo_.empty()) {
+      if (cdrom_read_timer_ > cycles) {
+        cdrom_read_timer_ -= cycles;
+      } else {
+        cdrom_read_timer_ = 0;
+      }
+      cdrom_maybe_fill_data();
+    }
+  }
+
   for (int i = 0; i < 3; ++i) {
     uint32_t before = timer_count_[i];
     uint16_t mode = timer_mode_[i];
@@ -896,6 +1170,9 @@ void MmioBus::tick(uint32_t cycles) {
 }
 
 uint32_t MmioBus::consume_dma_channel() {
+  if (dma_active_channel_ == 3 && cdrom_data_fifo_.empty()) {
+    return 0xFFFFFFFFu;
+  }
   uint32_t channel = dma_active_channel_;
   dma_active_channel_ = 0xFFFFFFFFu;
   if (channel < 7) {
@@ -947,9 +1224,7 @@ bool MmioBus::load_cdrom_image(const std::string &path, std::string &error) {
 size_t MmioBus::read_cdrom_data(uint8_t *dst, size_t len) {
   size_t read = 0;
   while (read < len) {
-    if (cdrom_data_fifo_.empty() && cdrom_reading_ && cdrom_image_.loaded() && !cdrom_error_) {
-      cdrom_fill_data_fifo(cdrom_image_, cdrom_lba_, cdrom_error_, cdrom_data_fifo_);
-    }
+    cdrom_maybe_fill_data();
     if (cdrom_data_fifo_.empty()) {
       break;
     }
