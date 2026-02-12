@@ -1,10 +1,120 @@
 #include "core/cpu.h"
 
 #include <cstdint>
+#include <cstdlib>
+#include <iomanip>
+#include <iostream>
+#include <sstream>
+#include <string>
 
 namespace {
 constexpr uint32_t kCop0StatusBev = 1u << 22;
 constexpr uint32_t kCop0StatusIsc = 1u << 16;
+
+struct WatchRange {
+  bool enabled = false;
+  uint32_t start = 0;
+  uint32_t end = 0;
+};
+
+static WatchRange load_watch_range() {
+  WatchRange range;
+  const char *env = std::getenv("PS1EMU_WATCH_RANGE");
+  if (!env || *env == '\0') {
+    return range;
+  }
+  std::string spec(env);
+  size_t colon = spec.find(':');
+  try {
+    if (colon == std::string::npos) {
+      uint32_t addr = static_cast<uint32_t>(std::stoul(spec, nullptr, 0));
+      range.start = addr;
+      range.end = addr;
+    } else {
+      range.start = static_cast<uint32_t>(std::stoul(spec.substr(0, colon), nullptr, 0));
+      range.end = static_cast<uint32_t>(std::stoul(spec.substr(colon + 1), nullptr, 0));
+    }
+    range.enabled = true;
+  } catch (...) {
+    range.enabled = false;
+  }
+  return range;
+}
+
+static WatchRange load_watch_read_range() {
+  WatchRange range;
+  const char *env = std::getenv("PS1EMU_WATCH_READ_RANGE");
+  if (!env || *env == '\0') {
+    return range;
+  }
+  std::string spec(env);
+  size_t colon = spec.find(':');
+  try {
+    if (colon == std::string::npos) {
+      uint32_t addr = static_cast<uint32_t>(std::stoul(spec, nullptr, 0));
+      range.start = addr;
+      range.end = addr;
+    } else {
+      range.start = static_cast<uint32_t>(std::stoul(spec.substr(0, colon), nullptr, 0));
+      range.end = static_cast<uint32_t>(std::stoul(spec.substr(colon + 1), nullptr, 0));
+    }
+    range.enabled = true;
+  } catch (...) {
+    range.enabled = false;
+  }
+  return range;
+}
+
+static const WatchRange &watch_range() {
+  static WatchRange range = load_watch_range();
+  return range;
+}
+
+static const WatchRange &watch_read_range() {
+  static WatchRange range = load_watch_read_range();
+  return range;
+}
+
+static bool irq_log_enabled() {
+  static int cached = -1;
+  if (cached < 0) {
+    const char *env = std::getenv("PS1EMU_LOG_IRQ");
+    cached = (env && env[0] != '\0' && env[0] != '0') ? 1 : 0;
+  }
+  return cached == 1;
+}
+
+static void maybe_log_store(uint32_t pc, uint32_t addr, uint32_t value, const char *op) {
+  const WatchRange &range = watch_range();
+  if (!range.enabled) {
+    return;
+  }
+  if (addr < range.start || addr > range.end) {
+    return;
+  }
+  std::ostringstream oss;
+  oss << std::hex << std::setfill('0');
+  oss << "[watch] " << op << " pc=0x" << std::setw(8) << pc;
+  oss << " addr=0x" << std::setw(8) << addr;
+  oss << " value=0x" << std::setw(8) << value << "\n";
+  std::cerr << oss.str();
+}
+
+static void maybe_log_load(uint32_t pc, uint32_t addr, uint32_t value, const char *op) {
+  const WatchRange &range = watch_read_range();
+  if (!range.enabled) {
+    return;
+  }
+  if (addr < range.start || addr > range.end) {
+    return;
+  }
+  std::ostringstream oss;
+  oss << std::hex << std::setfill('0');
+  oss << "[watch] " << op << " pc=0x" << std::setw(8) << pc;
+  oss << " addr=0x" << std::setw(8) << addr;
+  oss << " value=0x" << std::setw(8) << value << "\n";
+  std::cerr << oss.str();
+}
 } // namespace
 
 namespace ps1emu {
@@ -225,13 +335,27 @@ bool CpuCore::check_interrupts() {
   bool ie = (state_.cop0.sr & 0x1) != 0;
   bool exl = (state_.cop0.sr & (1u << 1)) != 0;
   if (memory_) {
-    uint32_t bits = (static_cast<uint32_t>(memory_->irq_stat()) &
-                     static_cast<uint32_t>(memory_->irq_mask())) &
-                    0x3F;
+    uint32_t pending = (static_cast<uint32_t>(memory_->irq_stat()) &
+                        static_cast<uint32_t>(memory_->irq_mask())) &
+                       0x3F;
+    // PS1 routes I_STAT through a single interrupt line (IP2).
     state_.cop0.cause &= ~(0x3F << 10);
-    state_.cop0.cause |= (bits << 10);
+    if (pending) {
+      state_.cop0.cause |= (1u << 10);
+    }
   }
   if (ie && !exl && memory_ && memory_->irq_pending()) {
+    if (irq_log_enabled()) {
+      std::ostringstream oss;
+      oss << std::hex << std::setfill('0');
+      oss << "[irq] CPU interrupt pc=0x" << std::setw(8) << state_.pc;
+      if (memory_) {
+        oss << " istat=0x" << std::setw(4) << memory_->irq_stat();
+        oss << " imask=0x" << std::setw(4) << memory_->irq_mask();
+      }
+      oss << " sr=0x" << std::setw(8) << state_.cop0.sr << "\n";
+      std::cerr << oss.str();
+    }
     raise_exception(0, 0, false, state_.pc, state_.pc);
     return true;
   }
@@ -616,14 +740,7 @@ uint32_t CpuCore::execute_instruction(uint32_t instr,
         state_.cop0.sr = (state_.cop0.sr & ~0x3F) | ((mode >> 2) & 0x0F);
         break;
       }
-      if (cop_op == 0x02) { // CFC0
-        out_load = {true, rt, 0};
-        break;
-      }
-      if (cop_op == 0x06) { // CTC0
-        break;
-      }
-      if (cop_op == 0x00) { // MFC0
+      if (cop_op == 0x00 || cop_op == 0x02) { // MFC0/CFC0
         uint32_t value = 0;
         switch (rd) {
           case 8:
@@ -655,7 +772,7 @@ uint32_t CpuCore::execute_instruction(uint32_t instr,
             break;
         }
         out_load = {true, rt, value};
-      } else if (cop_op == 0x04) { // MTC0
+      } else if (cop_op == 0x04 || cop_op == 0x06) { // MTC0/CTC0
         uint32_t value = read_reg(rt);
         switch (rd) {
           case 8:
@@ -689,6 +806,7 @@ uint32_t CpuCore::execute_instruction(uint32_t instr,
     case 0x20: { // LB
       uint32_t addr = read_reg(rs) + imm_se;
       int8_t val = static_cast<int8_t>(memory_->read8(addr));
+      maybe_log_load(instr_pc, addr, static_cast<uint32_t>(static_cast<int32_t>(val)), "LB");
       out_load = {true, rt, static_cast<uint32_t>(static_cast<int32_t>(val))};
       break;
     }
@@ -700,6 +818,7 @@ uint32_t CpuCore::execute_instruction(uint32_t instr,
         break;
       }
       int16_t val = static_cast<int16_t>(memory_->read16(addr));
+      maybe_log_load(instr_pc, addr, static_cast<uint32_t>(static_cast<int32_t>(val)), "LH");
       out_load = {true, rt, static_cast<uint32_t>(static_cast<int32_t>(val))};
       break;
     }
@@ -722,6 +841,7 @@ uint32_t CpuCore::execute_instruction(uint32_t instr,
           reg = word;
           break;
       }
+      maybe_log_load(instr_pc, addr, reg, "LWL");
       out_load = {true, rt, reg};
       break;
     }
@@ -732,12 +852,16 @@ uint32_t CpuCore::execute_instruction(uint32_t instr,
         out_exception = true;
         break;
       }
-      out_load = {true, rt, memory_->read32(addr)};
+      uint32_t value = memory_->read32(addr);
+      maybe_log_load(instr_pc, addr, value, "LW");
+      out_load = {true, rt, value};
       break;
     }
     case 0x24: { // LBU
       uint32_t addr = read_reg(rs) + imm_se;
-      out_load = {true, rt, memory_->read8(addr)};
+      uint32_t value = memory_->read8(addr);
+      maybe_log_load(instr_pc, addr, value, "LBU");
+      out_load = {true, rt, value};
       break;
     }
     case 0x25: { // LHU
@@ -747,7 +871,9 @@ uint32_t CpuCore::execute_instruction(uint32_t instr,
         out_exception = true;
         break;
       }
-      out_load = {true, rt, memory_->read16(addr)};
+      uint32_t value = memory_->read16(addr);
+      maybe_log_load(instr_pc, addr, value, "LHU");
+      out_load = {true, rt, value};
       break;
     }
     case 0x26: { // LWR
@@ -769,6 +895,7 @@ uint32_t CpuCore::execute_instruction(uint32_t instr,
           reg = (reg & 0xFFFFFF00u) | (word >> 24);
           break;
       }
+      maybe_log_load(instr_pc, addr, reg, "LWR");
       out_load = {true, rt, reg};
       break;
     }
@@ -777,7 +904,9 @@ uint32_t CpuCore::execute_instruction(uint32_t instr,
       if (cache_isolated) {
         break;
       }
-      memory_->write8(addr, static_cast<uint8_t>(read_reg(rt) & 0xFF));
+      uint8_t value = static_cast<uint8_t>(read_reg(rt) & 0xFF);
+      memory_->write8(addr, value);
+      maybe_log_store(instr_pc, addr, value, "SB");
       break;
     }
     case 0x29: { // SH
@@ -790,7 +919,9 @@ uint32_t CpuCore::execute_instruction(uint32_t instr,
       if (cache_isolated) {
         break;
       }
-      memory_->write16(addr, static_cast<uint16_t>(read_reg(rt) & 0xFFFF));
+      uint16_t value = static_cast<uint16_t>(read_reg(rt) & 0xFFFF);
+      memory_->write16(addr, value);
+      maybe_log_store(instr_pc, addr, value, "SH");
       break;
     }
     case 0x2A: { // SWL
@@ -816,6 +947,7 @@ uint32_t CpuCore::execute_instruction(uint32_t instr,
           break;
       }
       memory_->write32(aligned, word);
+      maybe_log_store(instr_pc, aligned, word, "SWL");
       break;
     }
     case 0x2B: { // SW
@@ -828,7 +960,9 @@ uint32_t CpuCore::execute_instruction(uint32_t instr,
       if (cache_isolated) {
         break;
       }
-      memory_->write32(addr, read_reg(rt));
+      uint32_t value = read_reg(rt);
+      memory_->write32(addr, value);
+      maybe_log_store(instr_pc, addr, value, "SW");
       break;
     }
     case 0x2E: { // SWR
@@ -854,6 +988,7 @@ uint32_t CpuCore::execute_instruction(uint32_t instr,
           break;
       }
       memory_->write32(aligned, word);
+      maybe_log_store(instr_pc, aligned, word, "SWR");
       break;
     }
     case 0x30: { // LWC0
@@ -888,6 +1023,7 @@ uint32_t CpuCore::execute_instruction(uint32_t instr,
         break;
       }
       uint32_t value = memory_->read32(addr);
+      maybe_log_load(instr_pc, addr, value, "LWC2");
       enqueue_gte_write(rt, value, 3, false);
       break;
     }

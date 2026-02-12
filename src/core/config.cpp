@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <filesystem>
 #include <fstream>
 #include <sstream>
 #include <vector>
@@ -68,6 +69,18 @@ static bool parse_cpu_mode(const std::string &value, CpuMode &out) {
     return true;
   }
   return false;
+}
+
+static std::string resolve_path(const std::filesystem::path &base, const std::string &value) {
+  if (value.empty()) {
+    return value;
+  }
+  std::filesystem::path path(value);
+  if (path.is_absolute()) {
+    return value;
+  }
+  std::filesystem::path resolved = base / path;
+  return resolved.lexically_normal().string();
 }
 
 bool load_config_file(const std::string &path, Config &out, std::string &error) {
@@ -181,6 +194,13 @@ bool load_config_file(const std::string &path, Config &out, std::string &error) 
     // Unknown keys are ignored to allow forward-compatible configs.
   }
 
+  std::filesystem::path base = std::filesystem::absolute(path).parent_path();
+  out.bios_path = resolve_path(base, out.bios_path);
+  out.plugin_gpu = resolve_path(base, out.plugin_gpu);
+  out.plugin_spu = resolve_path(base, out.plugin_spu);
+  out.plugin_input = resolve_path(base, out.plugin_input);
+  out.plugin_cdrom = resolve_path(base, out.plugin_cdrom);
+  out.cdrom_image = resolve_path(base, out.cdrom_image);
   return true;
 }
 

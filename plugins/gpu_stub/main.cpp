@@ -2,6 +2,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <poll.h>
 #include <unistd.h>
 
 #include <algorithm>
@@ -120,7 +121,7 @@ static bool write_line_fd(const std::string &line) {
   return write_all(STDOUT_FILENO, data.data(), data.size());
 }
 
-static bool read_frame(uint16_t &out_type, std::vector<uint8_t> &out_payload) {
+static bool read_frame_blocking(uint16_t &out_type, std::vector<uint8_t> &out_payload) {
   uint8_t header[8];
   if (!read_exact(STDIN_FILENO, header, sizeof(header))) {
     return false;
@@ -141,6 +142,25 @@ static bool read_frame(uint16_t &out_type, std::vector<uint8_t> &out_payload) {
     return true;
   }
   return read_exact(STDIN_FILENO, out_payload.data(), length);
+}
+
+static bool read_frame_with_timeout(uint16_t &out_type,
+                                    std::vector<uint8_t> &out_payload,
+                                    int timeout_ms,
+                                    bool &out_timed_out) {
+  out_timed_out = false;
+  struct pollfd pfd {
+    STDIN_FILENO, POLLIN, 0
+  };
+  int rc = poll(&pfd, 1, timeout_ms);
+  if (rc == 0) {
+    out_timed_out = true;
+    return false;
+  }
+  if (rc < 0) {
+    return false;
+  }
+  return read_frame_blocking(out_type, out_payload);
 }
 
 static bool write_frame(uint16_t type, const std::vector<uint8_t> &payload) {
@@ -416,6 +436,20 @@ public:
     return out;
   }
 
+  void pump_events() {
+#ifdef PS1EMU_GPU_SDL
+    if (headless_ || !window_ || !renderer_) {
+      return;
+    }
+    SDL_Event evt;
+    while (SDL_PollEvent(&evt)) {
+      if (evt.type == SDL_QUIT) {
+        running_ = false;
+      }
+    }
+#endif
+  }
+
   void present() {
     bool want_dump = dump_frames_;
     bool want_output = false;
@@ -478,13 +512,7 @@ public:
       SDL_RenderClear(renderer_);
       SDL_RenderCopy(renderer_, texture_, nullptr, nullptr);
       SDL_RenderPresent(renderer_);
-
-      SDL_Event evt;
-      while (SDL_PollEvent(&evt)) {
-        if (evt.type == SDL_QUIT) {
-          running_ = false;
-        }
-      }
+      pump_events();
     }
 #endif
     if (want_dump) {
@@ -1483,7 +1511,12 @@ int main() {
   while (gpu.running()) {
     uint16_t type = 0;
     std::vector<uint8_t> payload;
-    if (!read_frame(type, payload)) {
+    bool timed_out = false;
+    if (!read_frame_with_timeout(type, payload, 16, timed_out)) {
+      if (timed_out) {
+        gpu.pump_events();
+        continue;
+      }
       if (gpu_log_enabled()) {
         std::cerr << "[gpu] read_frame failed\n";
       }

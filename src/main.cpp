@@ -6,8 +6,8 @@
 
 static void print_usage() {
   std::cout << "Usage: ps1emu [--config path] [--cycles N] [--frames N] [--trace]\n";
-  std::cout << "             [--trace-period N] [--watchdog] [--dump-dynarec]\n";
-  std::cout << "             [--dump-ram addr words]\n";
+  std::cout << "             [--trace-period N] [--trace-pc addr] [--trace-pc-period N]\n";
+  std::cout << "             [--watchdog] [--dump-dynarec] [--dump-ram addr words]\n";
 }
 
 int main(int argc, char **argv) {
@@ -17,8 +17,11 @@ int main(int argc, char **argv) {
   uint32_t frame_cycles = 33868800 / 60;
   bool dump_dynarec = false;
   bool trace_enabled = false;
+  bool trace_pc_enabled = false;
+  uint32_t trace_pc = 0;
   bool watchdog_enabled = false;
   uint32_t trace_period = 1000000;
+  uint32_t trace_pc_period = 1000000;
   bool dump_ram = false;
   uint32_t dump_ram_addr = 0;
   uint32_t dump_ram_words = 0;
@@ -52,6 +55,15 @@ int main(int argc, char **argv) {
       trace_period = static_cast<uint32_t>(std::stoul(argv[++i]));
       continue;
     }
+    if (arg == "--trace-pc" && i + 1 < argc) {
+      trace_pc = static_cast<uint32_t>(std::stoul(argv[++i], nullptr, 0));
+      trace_pc_enabled = true;
+      continue;
+    }
+    if (arg == "--trace-pc-period" && i + 1 < argc) {
+      trace_pc_period = static_cast<uint32_t>(std::stoul(argv[++i]));
+      continue;
+    }
     if (arg == "--watchdog") {
       watchdog_enabled = true;
       continue;
@@ -76,6 +88,10 @@ int main(int argc, char **argv) {
 
   core.set_trace_enabled(trace_enabled);
   core.set_trace_period_cycles(trace_period);
+  if (trace_pc_enabled) {
+    core.set_trace_pc(trace_pc);
+    core.set_trace_pc_period_cycles(trace_pc_period);
+  }
   core.set_watchdog_enabled(watchdog_enabled);
 
   std::cout << "PS1 emulator core initialized (stub).\n";

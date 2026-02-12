@@ -48,6 +48,7 @@ If `bios.path` is empty, a minimal HLE BIOS stub is used.
 Use `--cycles N` to execute a fixed number of CPU cycles, or `--frames N` to run
 for N frames at the default 60 Hz cycle budget.
 Optional: `--trace` and `--watchdog` enable PC/exception logging and a tight-loop watchdog.
+Use `--trace-pc addr` (and `--trace-pc-period N`) to log when a specific PC is hit.
 
 ## Status
 Scaffold plus early core: IPC, plugin launching, config, BIOS loader, memory map, CPU interpreter/dynarec skeleton, and a growing GTE. The GPU stub now handles GP0/GP1 packets, basic rendering (polygons/rects/lines), texture sampling, masking, dithering, semi-transparency, draw-to-display gating, GPUSTAT timing approximations, and display modes (including a best-effort 24-bit output path). SPU/CD-ROM/Input remain stub-level.

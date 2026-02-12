@@ -204,4 +204,12 @@ CMakeFiles/ps1emu_core.dir/src/core/cpu.cpp.o: \
  /usr/include/c++/15/bits/node_handle.h \
  /usr/include/c++/15/bits/erase_if.h \
  /home/jessie/Documents/Ps1-Emulator/src/core/gte.h \
- /home/jessie/Documents/Ps1-Emulator/src/core/scheduler.h
+ /home/jessie/Documents/Ps1-Emulator/src/core/scheduler.h \
+ /usr/include/c++/15/iomanip /usr/include/c++/15/locale \
+ /usr/include/c++/15/bits/locale_facets_nonio.h /usr/include/c++/15/ctime \
+ /usr/include/x86_64-linux-gnu/c++/15/bits/time_members.h \
+ /usr/include/x86_64-linux-gnu/c++/15/bits/messages_members.h \
+ /usr/include/libintl.h /usr/include/c++/15/bits/locale_facets_nonio.tcc \
+ /usr/include/c++/15/bits/locale_conv.h \
+ /usr/include/c++/15/bits/quoted_string.h /usr/include/c++/15/sstream \
+ /usr/include/c++/15/bits/sstream.tcc /usr/include/c++/15/iostream

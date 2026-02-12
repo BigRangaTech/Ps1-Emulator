@@ -68,11 +68,20 @@ bool EmulatorCore::initialize(const std::string &config_path) {
     return false;
   }
 
-  if (!plugin_host_.handshake(PluginType::Gpu) ||
-      !plugin_host_.handshake(PluginType::Spu) ||
-      !plugin_host_.handshake(PluginType::Input) ||
-      !plugin_host_.handshake(PluginType::Cdrom)) {
-    std::cerr << "Plugin handshake failed\n";
+  if (!plugin_host_.handshake(PluginType::Gpu)) {
+    std::cerr << "GPU plugin handshake failed\n";
+    return false;
+  }
+  if (!plugin_host_.handshake(PluginType::Spu)) {
+    std::cerr << "SPU plugin handshake failed\n";
+    return false;
+  }
+  if (!plugin_host_.handshake(PluginType::Input)) {
+    std::cerr << "INPUT plugin handshake failed\n";
+    return false;
+  }
+  if (!plugin_host_.handshake(PluginType::Cdrom)) {
+    std::cerr << "CDROM plugin handshake failed\n";
     return false;
   }
 
@@ -86,6 +95,7 @@ bool EmulatorCore::initialize(const std::string &config_path) {
 
   total_cycles_ = 0;
   next_trace_cycle_ = 0;
+  next_trace_pc_cycle_ = 0;
   watchdog_cycle_accum_ = 0;
   watchdog_same_pc_samples_ = 0;
   watchdog_alt_pc_samples_ = 0;
@@ -122,6 +132,13 @@ void EmulatorCore::run_for_cycles(uint32_t cycles) {
       if (total_cycles_ >= next_trace_cycle_) {
         log_trace_state("tick");
         next_trace_cycle_ = total_cycles_ + trace_period_cycles_;
+      }
+    }
+    if (trace_pc_enabled_) {
+      uint32_t pc = cpu_.state().pc;
+      if (pc == trace_pc_ && total_cycles_ >= next_trace_pc_cycle_) {
+        log_trace_pc_state(pc);
+        next_trace_pc_cycle_ = total_cycles_ + trace_pc_period_cycles_;
       }
     }
 
@@ -167,6 +184,17 @@ void EmulatorCore::set_trace_enabled(bool enabled) {
 void EmulatorCore::set_trace_period_cycles(uint32_t cycles) {
   trace_period_cycles_ = std::max<uint32_t>(cycles, 1);
   next_trace_cycle_ = total_cycles_;
+}
+
+void EmulatorCore::set_trace_pc(uint32_t pc) {
+  trace_pc_ = pc;
+  trace_pc_enabled_ = true;
+  next_trace_pc_cycle_ = total_cycles_;
+}
+
+void EmulatorCore::set_trace_pc_period_cycles(uint32_t cycles) {
+  trace_pc_period_cycles_ = std::max<uint32_t>(cycles, 1);
+  next_trace_pc_cycle_ = total_cycles_;
 }
 
 void EmulatorCore::set_watchdog_enabled(bool enabled) {
@@ -227,6 +255,147 @@ void EmulatorCore::log_exception_event(const CpuExceptionInfo &info) {
   oss << " sr=0x" << std::hex << std::setw(8) << std::setfill('0') << st.cop0.sr;
   oss << " cause=0x" << std::hex << std::setw(8) << std::setfill('0') << info.cause;
   std::cout << oss.str() << "\n";
+}
+
+void EmulatorCore::log_trace_pc_state(uint32_t instr_pc) {
+  std::ostringstream oss;
+  const auto &st = cpu_.state();
+  uint32_t instr = memory_.read32(instr_pc);
+  uint32_t prev_instr = memory_.read32(instr_pc - 4);
+  uint32_t next_instr = memory_.read32(instr_pc + 4);
+  oss << "[trace] pc-hit cycles=" << total_cycles_;
+  oss << " pc=0x" << std::hex << std::setw(8) << std::setfill('0') << instr_pc;
+  oss << " instr=0x" << std::hex << std::setw(8) << std::setfill('0') << instr;
+  oss << " prev=0x" << std::hex << std::setw(8) << std::setfill('0') << prev_instr;
+  oss << " next=0x" << std::hex << std::setw(8) << std::setfill('0') << next_instr;
+  oss << " sr=0x" << std::hex << std::setw(8) << std::setfill('0') << st.cop0.sr;
+  oss << " cause=0x" << std::hex << std::setw(8) << std::setfill('0') << st.cop0.cause;
+  oss << " irq=0x" << std::hex << std::setw(4) << std::setfill('0') << mmio_.irq_stat();
+  oss << "/0x" << std::hex << std::setw(4) << std::setfill('0') << mmio_.irq_mask();
+  std::cout << oss.str() << "\n";
+
+  std::ostringstream regs;
+  regs << std::hex << std::setfill('0');
+  regs << "[trace] regs";
+  regs << " at=0x" << std::setw(8) << st.gpr[1];
+  regs << " v0=0x" << std::setw(8) << st.gpr[2];
+  regs << " v1=0x" << std::setw(8) << st.gpr[3];
+  regs << " a0=0x" << std::setw(8) << st.gpr[4];
+  regs << " a1=0x" << std::setw(8) << st.gpr[5];
+  regs << " a2=0x" << std::setw(8) << st.gpr[6];
+  regs << " a3=0x" << std::setw(8) << st.gpr[7];
+  regs << " t0=0x" << std::setw(8) << st.gpr[8];
+  regs << " t1=0x" << std::setw(8) << st.gpr[9];
+  regs << " t2=0x" << std::setw(8) << st.gpr[10];
+  regs << " t3=0x" << std::setw(8) << st.gpr[11];
+  regs << " t4=0x" << std::setw(8) << st.gpr[12];
+  regs << " t5=0x" << std::setw(8) << st.gpr[13];
+  regs << " t6=0x" << std::setw(8) << st.gpr[14];
+  regs << " t7=0x" << std::setw(8) << st.gpr[15];
+  regs << " t8=0x" << std::setw(8) << st.gpr[24];
+  regs << " t9=0x" << std::setw(8) << st.gpr[25];
+  regs << " s0=0x" << std::setw(8) << st.gpr[16];
+  regs << " s1=0x" << std::setw(8) << st.gpr[17];
+  regs << " s2=0x" << std::setw(8) << st.gpr[18];
+  regs << " s3=0x" << std::setw(8) << st.gpr[19];
+  regs << " gp=0x" << std::setw(8) << st.gpr[28];
+  regs << " sp=0x" << std::setw(8) << st.gpr[29];
+  regs << " fp=0x" << std::setw(8) << st.gpr[30];
+  regs << " ra=0x" << std::setw(8) << st.gpr[31];
+  regs << " k0=0x" << std::setw(8) << st.gpr[26];
+  regs << " k1=0x" << std::setw(8) << st.gpr[27];
+  regs << " hi=0x" << std::setw(8) << st.hi;
+  regs << " lo=0x" << std::setw(8) << st.lo;
+  std::cout << regs.str() << "\n";
+
+  std::ostringstream extra;
+  extra << std::hex << std::setfill('0');
+  bool any = false;
+
+  uint32_t v_92dc = memory_.read32(0x800792dc);
+  uint32_t v_92d8 = memory_.read32(0x800792d8);
+  uint32_t v_92e4 = memory_.read32(0x800792e4);
+  uint32_t v_92f0 = memory_.read32(0x800792f0);
+  uint32_t v_92e0 = memory_.read32(0x800792e0);
+  extra << "[trace] mem";
+  extra << " 0x800792dc=0x" << std::setw(8) << v_92dc;
+  extra << " 0x800792d8=0x" << std::setw(8) << v_92d8;
+  extra << " 0x800792e0=0x" << std::setw(8) << v_92e0;
+  extra << " 0x800792e4=0x" << std::setw(8) << v_92e4;
+  extra << " 0x800792f0=0x" << std::setw(8) << v_92f0;
+  any = true;
+
+  if ((instr & 0xFC00003Fu) == 0x00000009u) { // JALR
+    uint32_t rs = (instr >> 21) & 0x1Fu;
+    uint32_t target = st.gpr[rs];
+    extra << " jalr=0x" << std::setw(8) << target;
+    uint32_t target_phys = target & 0x1FFFFFFFu;
+    if (target_phys < MemoryMap::kRamSize) {
+      extra << " jalr_instrs=";
+      for (int i = 0; i < 32; ++i) {
+        uint32_t word = memory_.read32(target + static_cast<uint32_t>(i * 4));
+        if (i) {
+          extra << ",";
+        }
+        extra << "0x" << std::setw(8) << word;
+      }
+    }
+    any = true;
+  }
+
+  uint32_t table = st.gpr[24];
+  if ((table & 0x1FFFFFFFu) < MemoryMap::kRamSize) {
+    extra << " t8_table=";
+    for (int i = 0; i < 4; ++i) {
+      uint32_t word = memory_.read32(table + static_cast<uint32_t>(i * 4));
+      if (i) {
+        extra << ",";
+      }
+      extra << "0x" << std::setw(8) << word;
+    }
+    any = true;
+  }
+
+  uint32_t v_9300 = memory_.read32(0x80089300);
+  extra << " mem9300=0x" << std::setw(8) << v_9300;
+  any = true;
+
+  uint32_t ctx = st.gpr[4];
+  if ((ctx & 0x1FFFFFFFu) < MemoryMap::kRamSize) {
+    extra << " a0_ctx=";
+    for (int i = 0; i < 8; ++i) {
+      uint32_t word = memory_.read32(ctx + static_cast<uint32_t>(i * 4));
+      if (i) {
+        extra << ",";
+      }
+      extra << "0x" << std::setw(8) << word;
+    }
+    any = true;
+  }
+
+  {
+    uint32_t gpustat = memory_.read32(0x1F801814);
+    uint32_t chcr2 = memory_.read32(0x1F8010A8);
+    uint32_t dicr = memory_.read32(0x1F8010F4);
+    uint32_t dpcr = memory_.read32(0x1F8010F0);
+    uint32_t istat = memory_.read32(0x1F801070);
+    uint32_t imask = memory_.read32(0x1F801074);
+    uint32_t bios_tick = memory_.read32(0x80089DDC);
+    uint32_t bios_deadline = memory_.read32(0x800EEA9C);
+    extra << " mmio_gpustat=0x" << std::setw(8) << gpustat;
+    extra << " mmio_chcr2=0x" << std::setw(8) << chcr2;
+    extra << " mmio_dicr=0x" << std::setw(8) << dicr;
+    extra << " mmio_dpcr=0x" << std::setw(8) << dpcr;
+    extra << " istat=0x" << std::setw(8) << istat;
+    extra << " imask=0x" << std::setw(8) << imask;
+    extra << " bios_tick=0x" << std::setw(8) << bios_tick;
+    extra << " bios_deadline=0x" << std::setw(8) << bios_deadline;
+    any = true;
+  }
+
+  if (any) {
+    std::cout << extra.str() << "\n";
+  }
 }
 
 void EmulatorCore::watchdog_sample() {
@@ -467,9 +636,9 @@ void EmulatorCore::process_dma() {
       }
 
       mmio_.set_dma_madr(channel, addr);
-      uint64_t dma_busy = static_cast<uint64_t>(block_words) * 2;
-      dma_busy += static_cast<uint64_t>(blocks) * 8;
-      mmio_.gpu_add_busy(static_cast<uint32_t>(std::min<uint64_t>(dma_busy, 100000)));
+      uint64_t dma_busy = static_cast<uint64_t>(block_words);
+      dma_busy = std::min<uint64_t>(dma_busy, 512);
+      mmio_.gpu_add_busy(static_cast<uint32_t>(dma_busy));
 
       if (!words.empty() || !gpu_dma_remainder_.empty()) {
         std::vector<uint32_t> merged;
@@ -492,11 +661,11 @@ void EmulatorCore::process_dma() {
       return;
     }
 
-    uint64_t dma_busy = static_cast<uint64_t>(total_words) * 2;
-    dma_busy += static_cast<uint64_t>(block_count ? block_count : 1) * 8;
-    mmio_.gpu_add_busy(static_cast<uint32_t>(std::min<uint64_t>(dma_busy, 100000)));
+    uint64_t dma_busy = static_cast<uint64_t>(total_words);
+    dma_busy = std::min<uint64_t>(dma_busy, 512);
+    mmio_.gpu_add_busy(static_cast<uint32_t>(dma_busy));
 
-    if (mmio_.gpu_dma_dir() == 2) { // GPU -> CPU (VRAM read DMA)
+    if (mmio_.gpu_dma_dir() == 3) { // GPU -> CPU (VRAM read DMA)
       for (uint32_t i = 0; i < total_words; ++i) {
         uint32_t addr = decrement ? (madr - i * 4) : (madr + i * 4);
         uint32_t word = mmio_.gpu_read_word();

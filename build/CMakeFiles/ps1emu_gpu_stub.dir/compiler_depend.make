@@ -209,6 +209,7 @@ CMakeFiles/ps1emu_gpu_stub.dir/plugins/gpu_stub/main.cpp.o: /home/jessie/Documen
   /usr/include/linux/types.h \
   /usr/include/locale.h \
   /usr/include/math.h \
+  /usr/include/poll.h \
   /usr/include/pthread.h \
   /usr/include/sched.h \
   /usr/include/stdc-predef.h \
@@ -252,6 +253,7 @@ CMakeFiles/ps1emu_gpu_stub.dir/plugins/gpu_stub/main.cpp.o: /home/jessie/Documen
   /usr/include/x86_64-linux-gnu/bits/mathcalls-macros.h \
   /usr/include/x86_64-linux-gnu/bits/mathcalls-narrow.h \
   /usr/include/x86_64-linux-gnu/bits/mathcalls.h \
+  /usr/include/x86_64-linux-gnu/bits/poll.h \
   /usr/include/x86_64-linux-gnu/bits/posix_opt.h \
   /usr/include/x86_64-linux-gnu/bits/pthread_stack_min-dynamic.h \
   /usr/include/x86_64-linux-gnu/bits/pthreadtypes-arch.h \
@@ -328,6 +330,7 @@ CMakeFiles/ps1emu_gpu_stub.dir/plugins/gpu_stub/main.cpp.o: /home/jessie/Documen
   /usr/include/x86_64-linux-gnu/gnu/stubs-64.h \
   /usr/include/x86_64-linux-gnu/gnu/stubs.h \
   /usr/include/x86_64-linux-gnu/sys/cdefs.h \
+  /usr/include/x86_64-linux-gnu/sys/poll.h \
   /usr/include/x86_64-linux-gnu/sys/select.h \
   /usr/include/x86_64-linux-gnu/sys/single_threaded.h \
   /usr/include/x86_64-linux-gnu/sys/stat.h \
@@ -929,13 +932,19 @@ CMakeFiles/ps1emu_gpu_stub.dir/plugins/gpu_stub/main.cpp.o:
 
 /usr/lib/i386-linux-gnu/libX11.so.6:
 
-/usr/include/x86_64-linux-gnu/bits/sched.h:
+/usr/lib/i386-linux-gnu/libX11-xcb.so.1:
 
-/usr/lib/gcc/x86_64-linux-gnu/15/include/sm3intrin.h:
+/usr/lib/i386-linux-gnu/libFLAC.so.14:
+
+/usr/lib/gcc/x86_64-linux-gnu/15/libstdc++.so:
 
 /usr/include/x86_64-linux-gnu/bits/posix_opt.h:
 
 /lib/x86_64-linux-gnu/libX11.so.6:
+
+/usr/include/x86_64-linux-gnu/bits/poll.h:
+
+/usr/include/SDL2/SDL_assert.h:
 
 /usr/include/x86_64-linux-gnu/bits/locale.h:
 
@@ -1011,10 +1020,6 @@ CMakeFiles/ps1emu_gpu_stub.dir/plugins/gpu_stub/main.cpp.o:
 
 /usr/include/c++/15/pstl/glue_algorithm_defs.h:
 
-/usr/include/x86_64-linux-gnu/bits/select.h:
-
-/usr/include/x86_64-linux-gnu/bits/time.h:
-
 /usr/include/time.h:
 
 /usr/include/c++/15/tr1/hypergeometric.tcc:
@@ -1083,8 +1088,6 @@ CMakeFiles/ps1emu_gpu_stub.dir/plugins/gpu_stub/main.cpp.o:
 
 /usr/lib/gcc/x86_64-linux-gnu/15/include/avx10_2satcvtintrin.h:
 
-/usr/lib/i386-linux-gnu/libFLAC.so.14:
-
 /usr/include/endian.h:
 
 /usr/include/stdint.h:
@@ -1102,6 +1105,10 @@ CMakeFiles/ps1emu_gpu_stub.dir/plugins/gpu_stub/main.cpp.o:
 /usr/include/x86_64-linux-gnu/bits/types.h:
 
 /usr/include/x86_64-linux-gnu/c++/15/bits/cpu_defines.h:
+
+/usr/lib/gcc/x86_64-linux-gnu/15/include/pconfigintrin.h:
+
+/usr/include/x86_64-linux-gnu/bits/types/struct_timeval.h:
 
 /usr/include/c++/15/bits/stringfwd.h:
 
@@ -1230,8 +1237,6 @@ CMakeFiles/ps1emu_gpu_stub.dir/plugins/gpu_stub/main.cpp.o:
 /usr/include/c++/15/bits/stl_vector.h:
 
 /usr/lib/gcc/x86_64-linux-gnu/15/include/cetintrin.h:
-
-/usr/include/SDL2/SDL_assert.h:
 
 /usr/include/c++/15/pstl/pstl_config.h:
 
@@ -1362,6 +1367,8 @@ CMakeFiles/ps1emu_gpu_stub.dir/plugins/gpu_stub/main.cpp.o:
 /usr/include/linux/close_range.h:
 
 /usr/include/SDL2/SDL_touch.h:
+
+/usr/include/x86_64-linux-gnu/sys/poll.h:
 
 /usr/include/c++/15/tr1/modified_bessel_func.tcc:
 
@@ -1563,9 +1570,19 @@ CMakeFiles/ps1emu_gpu_stub.dir/plugins/gpu_stub/main.cpp.o:
 
 /usr/include/c++/15/tr1/exp_integral.tcc:
 
+/usr/include/poll.h:
+
 /usr/include/x86_64-linux-gnu/bits/types/error_t.h:
 
 /usr/include/c++/15/bits/streambuf_iterator.h:
+
+/usr/include/x86_64-linux-gnu/bits/sched.h:
+
+/usr/lib/gcc/x86_64-linux-gnu/15/include/sm3intrin.h:
+
+/usr/include/x86_64-linux-gnu/bits/select.h:
+
+/usr/include/x86_64-linux-gnu/bits/time.h:
 
 /usr/lib/gcc/x86_64-linux-gnu/15/include/avx512vpopcntdqintrin.h:
 
@@ -1634,10 +1651,6 @@ CMakeFiles/ps1emu_gpu_stub.dir/plugins/gpu_stub/main.cpp.o:
 /usr/include/x86_64-linux-gnu/bits/types/struct_itimerspec.h:
 
 /usr/include/x86_64-linux-gnu/bits/types/struct_statx.h:
-
-/usr/lib/gcc/x86_64-linux-gnu/15/include/pconfigintrin.h:
-
-/usr/include/x86_64-linux-gnu/bits/types/struct_timeval.h:
 
 /usr/include/x86_64-linux-gnu/bits/types/struct_tm.h:
 
@@ -1818,8 +1831,6 @@ CMakeFiles/ps1emu_gpu_stub.dir/plugins/gpu_stub/main.cpp.o:
 /usr/lib/gcc/x86_64-linux-gnu/15/include/avx512vbmivlintrin.h:
 
 /usr/lib/gcc/x86_64-linux-gnu/15/include/avx512vlbwintrin.h:
-
-/usr/lib/i386-linux-gnu/libX11-xcb.so.1:
 
 /usr/lib/gcc/x86_64-linux-gnu/15/include/tmmintrin.h:
 
@@ -2028,8 +2039,6 @@ CMakeFiles/ps1emu_gpu_stub.dir/plugins/gpu_stub/main.cpp.o:
 /usr/include/c++/15/bits/istream.tcc:
 
 /lib64/ld-linux-x86-64.so.2:
-
-/usr/lib/gcc/x86_64-linux-gnu/15/libstdc++.so:
 
 /usr/lib/x86_64-linux-gnu/crti.o:
 

@@ -494,7 +494,7 @@ static bool test_vblank_irq() {
   mmio.tick(kCyclesPerFrame);
   CHECK((mmio.irq_stat() & 0x1u) != 0);
 
-  mmio.write16(0x1F801070, static_cast<uint16_t>(~(1u << 0)));
+  mmio.write16(0x1F801070, static_cast<uint16_t>(1u << 0));
   CHECK((mmio.irq_stat() & 0x1u) == 0);
   return true;
 }
@@ -560,7 +560,7 @@ static bool test_gpu_dma_request_bits() {
   ps1emu::MmioBus mmio;
   mmio.reset();
 
-  mmio.write32(0x1F801814, 0x04000002u); // DMA dir GPU->CPU
+  mmio.write32(0x1F801814, 0x04000003u); // DMA dir GPU->CPU
   uint32_t stat = mmio.read32(0x1F801814);
   CHECK((stat & (1u << 25)) == 0);
 
@@ -849,7 +849,7 @@ static bool test_dma_irq() {
   CHECK((dicr_after & (1u << 31)) != 0);
   CHECK((dicr_after & (1u << (24 + 2))) != 0);
 
-  mmio.write32(0x1F801070, static_cast<uint32_t>(~(1u << 3)));
+  mmio.write32(0x1F801070, static_cast<uint32_t>(1u << 3));
   CHECK((mmio.irq_stat() & (1u << 3)) == 0);
   return true;
 }
@@ -880,6 +880,69 @@ static bool test_timer_irq_on_target() {
 
   mmio.tick(5);
   CHECK((mmio.irq_stat() & (1u << 4)) != 0);
+  return true;
+}
+
+static bool test_joypad_stub_ready() {
+  ps1emu::MmioBus mmio;
+  mmio.reset();
+
+  uint16_t stat = mmio.read16(0x1F801044);
+  CHECK((stat & 0x0001u) != 0); // TX ready
+  CHECK((stat & 0x0004u) != 0); // TX empty
+  return true;
+}
+
+static bool test_joypad_rx_ready_after_write() {
+  ps1emu::MmioBus mmio;
+  mmio.reset();
+
+  mmio.write8(0x1F801040, 0x01);
+  mmio.tick(5000);
+  uint16_t stat = mmio.read16(0x1F801044);
+  CHECK((stat & 0x0002u) != 0); // RX ready
+  CHECK((stat & 0x0080u) != 0); // DSR/ACK
+  uint8_t data = mmio.read8(0x1F801040);
+  CHECK(data == 0xFF);
+  stat = mmio.read16(0x1F801044);
+  CHECK((stat & 0x0002u) == 0);
+  CHECK((stat & 0x0080u) == 0);
+  return true;
+}
+
+static bool test_sio1_stub_ready() {
+  ps1emu::MmioBus mmio;
+  mmio.reset();
+
+  uint16_t stat = mmio.read16(0x1F801054);
+  CHECK((stat & 0x0001u) != 0); // TX ready
+  CHECK((stat & 0x0004u) != 0); // TX idle
+  CHECK((stat & 0x0180u) == 0x0180u); // DSR + CTS high
+  return true;
+}
+
+static bool test_sio1_rx_ready_after_write() {
+  ps1emu::MmioBus mmio;
+  mmio.reset();
+
+  mmio.write8(0x1F801050, 0x01);
+  uint16_t stat = mmio.read16(0x1F801054);
+  CHECK((stat & 0x0002u) != 0); // RX ready
+  uint8_t data = mmio.read8(0x1F801050);
+  CHECK(data == 0xFF);
+  stat = mmio.read16(0x1F801054);
+  CHECK((stat & 0x0002u) == 0);
+  return true;
+}
+
+static bool test_spu_status_tracks_ctrl() {
+  ps1emu::MmioBus mmio;
+  mmio.reset();
+
+  mmio.write16(0x1F801DAA, 0x0030); // transfer mode DMA read
+  uint16_t stat = mmio.read16(0x1F801DAE);
+  CHECK((stat & 0x003Fu) == 0x0030);
+  CHECK((stat & 0x0200u) != 0);
   return true;
 }
 
@@ -1564,7 +1627,7 @@ static bool test_gpu_dma_read_to_ram() {
   auto &memory = ps1emu::EmulatorCoreTestAccess::memory(scoped.core);
 
   mmio.queue_gpu_read_data({0x11223344u, 0x55667788u});
-  mmio.write32(0x1F801814, 0x04000002u); // DMA direction GPU->CPU
+  mmio.write32(0x1F801814, 0x04000003u); // DMA direction GPU->CPU
 
   uint32_t base = 0x00018000;
   mmio.write32(0x1F8010F4, (1u << 23) | (1u << (16 + 2)));
@@ -1772,6 +1835,11 @@ int main() {
       {"dma_irq", test_dma_irq},
       {"dma_dicr_clears_irq", test_dma_dicr_clears_irq},
       {"timer_irq_on_target", test_timer_irq_on_target},
+      {"joypad_stub_ready", test_joypad_stub_ready},
+      {"joypad_rx_ready_after_write", test_joypad_rx_ready_after_write},
+      {"sio1_stub_ready", test_sio1_stub_ready},
+      {"sio1_rx_ready_after_write", test_sio1_rx_ready_after_write},
+      {"spu_status_tracks_ctrl", test_spu_status_tracks_ctrl},
       {"gpu_packet_parsing", test_gpu_packet_parsing},
       {"gpu_packet_parsing_edges", test_gpu_packet_parsing_edges},
       {"memory_map_mmio", test_memory_map_mmio},

@@ -80,6 +80,9 @@ private:
   };
 
   uint8_t cdrom_status() const;
+  uint16_t joy_status() const;
+  uint16_t sio1_status() const;
+  uint16_t spu_status() const;
   void cdrom_push_response(uint8_t value);
   void cdrom_push_response_block(const std::vector<uint8_t> &values);
   void cdrom_queue_response(uint32_t delay_cycles,
@@ -87,6 +90,8 @@ private:
                             std::vector<uint8_t> response,
                             bool clear_seeking = false);
   void cdrom_raise_irq(uint8_t flags);
+  void cdrom_update_irq_line();
+  void cdrom_set_irq_enable(uint8_t enable);
   void cdrom_execute_command(uint8_t cmd);
   void cdrom_maybe_fill_data();
   CdromFillResult cdrom_fill_data_fifo();
@@ -132,6 +137,8 @@ private:
   uint32_t gpu_draw_area_tl_ = 0;
   uint32_t gpu_draw_area_br_ = 0;
   uint32_t gpu_draw_offset_ = 0;
+  uint32_t gpu_line_cycle_accum_ = 0;
+  uint32_t gpu_line_ = 0;
   uint32_t dma_active_channel_ = 0xFFFFFFFFu;
 
   uint16_t irq_stat_ = 0;
@@ -146,6 +153,8 @@ private:
   uint16_t timer_count_[3] = {};
   uint16_t timer_mode_[3] = {};
   uint16_t timer_target_[3] = {};
+  uint32_t timer_cycle_accum_[3] = {};
+  bool timer_sync_waiting_[3] = {};
 
   std::array<uint16_t, 0x200 / 2> spu_regs_ {};
   std::array<uint8_t, 4> cdrom_regs_ {};
@@ -158,6 +167,12 @@ private:
   uint8_t cdrom_status_ = 0;
   uint8_t cdrom_irq_flags_ = 0;
   uint8_t cdrom_irq_enable_ = 0;
+  uint8_t cdrom_request_ = 0;
+  uint8_t cdrom_vol_ll_ = 0;
+  uint8_t cdrom_vol_lr_ = 0;
+  uint8_t cdrom_vol_rl_ = 0;
+  uint8_t cdrom_vol_rr_ = 0;
+  uint8_t cdrom_vol_apply_ = 0;
   uint8_t cdrom_mode_ = 0;
   uint8_t cdrom_filter_file_ = 0;
   uint8_t cdrom_filter_channel_ = 0;
@@ -182,6 +197,30 @@ private:
   bool timer_irq_repeat_[3] = {};
   bool timer_irq_on_overflow_[3] = {};
   bool timer_irq_on_target_[3] = {};
+  bool timer_irq_toggle_[3] = {};
+
+  uint16_t joy_mode_ = 0;
+  uint16_t joy_ctrl_ = 0;
+  uint16_t joy_baud_ = 0;
+  uint8_t joy_rx_data_ = 0xFF;
+  bool joy_rx_ready_ = false;
+  bool joy_ack_ = false;
+  bool joy_irq_pending_ = false;
+  std::deque<uint8_t> joy_tx_queue_;
+  uint32_t joy_tx_delay_cycles_ = 0;
+  std::deque<uint8_t> joy_response_queue_;
+  bool joy_session_active_ = false;
+  uint8_t joy_phase_ = 0;
+  uint8_t joy_device_ = 0;
+
+  uint16_t sio1_mode_ = 0;
+  uint16_t sio1_ctrl_ = 0;
+  uint16_t sio1_baud_ = 0;
+  uint16_t sio1_misc_ = 0;
+  uint8_t sio1_rx_data_ = 0xFF;
+  bool sio1_rx_ready_ = false;
+
+  uint16_t spu_ctrl_ = 0;
 };
 
 } // namespace ps1emu

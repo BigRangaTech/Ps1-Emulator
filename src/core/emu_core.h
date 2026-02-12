@@ -30,6 +30,8 @@ public:
   bool bios_is_hle() const;
   void set_trace_enabled(bool enabled);
   void set_trace_period_cycles(uint32_t cycles);
+  void set_trace_pc(uint32_t pc);
+  void set_trace_pc_period_cycles(uint32_t cycles);
   void set_watchdog_enabled(bool enabled);
   void set_watchdog_sample_cycles(uint32_t cycles);
   void set_watchdog_stall_cycles(uint32_t cycles);
@@ -50,6 +52,7 @@ private:
   CpuCore::Mode resolve_cpu_mode() const;
   void log_trace_state(const char *label);
   void log_exception_event(const CpuExceptionInfo &info);
+  void log_trace_pc_state(uint32_t instr_pc);
   void watchdog_sample();
 
   PluginHost plugin_host_;
@@ -66,6 +69,10 @@ private:
   uint16_t spu_main_vol_r_ = 0x3FFF;
   bool trace_enabled_ = false;
   uint32_t trace_period_cycles_ = 1000000;
+  bool trace_pc_enabled_ = false;
+  uint32_t trace_pc_ = 0;
+  uint32_t trace_pc_period_cycles_ = 1000000;
+  uint64_t next_trace_pc_cycle_ = 0;
   uint64_t total_cycles_ = 0;
   uint64_t next_trace_cycle_ = 0;
   bool watchdog_enabled_ = false;

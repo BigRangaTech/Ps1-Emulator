@@ -10,6 +10,23 @@
 namespace ps1emu {
 
 static uint32_t cdrom_read_period_cycles(uint8_t mode);
+static constexpr uint32_t kJoyData = 0x1F801040;
+static constexpr uint32_t kJoyStat = 0x1F801044;
+static constexpr uint32_t kJoyMode = 0x1F801048;
+static constexpr uint32_t kJoyCtrl = 0x1F80104A;
+static constexpr uint32_t kJoyBaud = 0x1F80104E;
+static constexpr uint32_t kSio1Data = 0x1F801050;
+static constexpr uint32_t kSio1Stat = 0x1F801054;
+static constexpr uint32_t kSio1Mode = 0x1F801058;
+static constexpr uint32_t kSio1Ctrl = 0x1F80105A;
+static constexpr uint32_t kSio1Misc = 0x1F80105C;
+static constexpr uint32_t kSio1Baud = 0x1F80105E;
+static constexpr uint16_t kJoyStatTxReady = 1u << 0;
+static constexpr uint16_t kJoyStatRxReady = 1u << 1;
+static constexpr uint16_t kJoyStatTxEmpty = 1u << 2;
+static constexpr uint16_t kJoyStatDsr = 1u << 7;
+static constexpr uint32_t kSpuCtrlAddr = 0x1F801DAA;
+static constexpr uint32_t kSpuStatAddr = 0x1F801DAE;
 
 void MmioBus::reset() {
   std::memset(raw_.data(), 0, raw_.size());
@@ -25,6 +42,10 @@ void MmioBus::reset() {
   std::memset(timer_count_, 0, sizeof(timer_count_));
   std::memset(timer_mode_, 0, sizeof(timer_mode_));
   std::memset(timer_target_, 0, sizeof(timer_target_));
+  std::memset(timer_cycle_accum_, 0, sizeof(timer_cycle_accum_));
+  std::memset(timer_sync_waiting_, 0, sizeof(timer_sync_waiting_));
+  gpu_line_cycle_accum_ = 0;
+  gpu_line_ = 0;
   std::memset(spu_regs_.data(), 0, spu_regs_.size() * sizeof(uint16_t));
   std::memset(cdrom_regs_.data(), 0, cdrom_regs_.size());
   cdrom_param_fifo_.clear();
@@ -36,6 +57,12 @@ void MmioBus::reset() {
   cdrom_status_ = 0;
   cdrom_irq_flags_ = 0;
   cdrom_irq_enable_ = 0;
+  cdrom_request_ = 0;
+  cdrom_vol_ll_ = 0;
+  cdrom_vol_lr_ = 0;
+  cdrom_vol_rl_ = 0;
+  cdrom_vol_rr_ = 0;
+  cdrom_vol_apply_ = 0;
   cdrom_mode_ = 0;
   cdrom_filter_file_ = 0;
   cdrom_filter_channel_ = 0;
@@ -58,7 +85,28 @@ void MmioBus::reset() {
   std::memset(timer_irq_repeat_, 0, sizeof(timer_irq_repeat_));
   std::memset(timer_irq_on_overflow_, 0, sizeof(timer_irq_on_overflow_));
   std::memset(timer_irq_on_target_, 0, sizeof(timer_irq_on_target_));
+  std::memset(timer_irq_toggle_, 0, sizeof(timer_irq_toggle_));
   dma_active_channel_ = 0xFFFFFFFFu;
+  joy_mode_ = 0;
+  joy_ctrl_ = 0;
+  joy_baud_ = 0;
+  joy_rx_data_ = 0xFF;
+  joy_rx_ready_ = false;
+  joy_ack_ = false;
+  joy_irq_pending_ = false;
+  joy_tx_queue_.clear();
+  joy_tx_delay_cycles_ = 0;
+  joy_response_queue_.clear();
+  joy_session_active_ = false;
+  joy_phase_ = 0;
+  joy_device_ = 0;
+  sio1_mode_ = 0;
+  sio1_ctrl_ = 0;
+  sio1_baud_ = 0;
+  sio1_misc_ = 0;
+  sio1_rx_data_ = 0xFF;
+  sio1_rx_ready_ = false;
+  spu_ctrl_ = 0;
 }
 
 void MmioBus::reset_gpu_state() {
@@ -162,6 +210,9 @@ uint32_t MmioBus::compute_gpustat() const {
       ready_dma_block = ready_cmd;
       break;
     case 2:
+      ready_dma_block = ready_cmd;
+      break;
+    case 3:
       ready_dma_block = ready_vram_to_cpu;
       break;
     default:
@@ -193,7 +244,7 @@ uint32_t MmioBus::compute_gpustat() const {
       dma_req = ready_dma_block ? 1u : 0u;
       break;
     case 3:
-      dma_req = 1;
+      dma_req = ready_dma_block ? 1u : 0u;
       break;
     default:
       dma_req = 0;
@@ -301,6 +352,54 @@ static bool irq_log_enabled() {
   return cached == 1;
 }
 
+static bool gpustat_log_enabled() {
+  static int cached = -1;
+  if (cached < 0) {
+    const char *env = std::getenv("PS1EMU_LOG_GPUSTAT");
+    cached = (env && env[0] != '\0' && env[0] != '0') ? 1 : 0;
+  }
+  return cached == 1;
+}
+
+static bool gpu_cmd_log_enabled() {
+  static int cached = -1;
+  if (cached < 0) {
+    const char *env = std::getenv("PS1EMU_LOG_GPU_CMDS");
+    cached = (env && env[0] != '\0' && env[0] != '0') ? 1 : 0;
+  }
+  return cached == 1;
+}
+
+static bool gpu_read_log_enabled() {
+  static int cached = -1;
+  if (cached < 0) {
+    const char *env = std::getenv("PS1EMU_LOG_GPU_READ");
+    cached = (env && env[0] != '\0' && env[0] != '0') ? 1 : 0;
+  }
+  return cached == 1;
+}
+
+static bool dma_log_enabled() {
+  static int cached = -1;
+  if (cached < 0) {
+    const char *env = std::getenv("PS1EMU_LOG_DMA");
+    cached = (env && env[0] != '\0' && env[0] != '0') ? 1 : 0;
+  }
+  return cached == 1;
+}
+
+static uint32_t joy_byte_delay_cycles(uint16_t baud) {
+  uint32_t divisor = baud ? static_cast<uint32_t>(baud) : 0x0088u;
+  uint32_t cycles = divisor * 8u;
+  if (cycles < 32u) {
+    cycles = 32u;
+  }
+  if (cycles > 20000u) {
+    cycles = 20000u;
+  }
+  return cycles;
+}
+
 void MmioBus::cdrom_push_response(uint8_t value) {
   cdrom_response_fifo_.push_back(value);
 }
@@ -322,10 +421,21 @@ void MmioBus::cdrom_queue_response(uint32_t delay_cycles,
 }
 
 void MmioBus::cdrom_raise_irq(uint8_t flags) {
-  cdrom_irq_flags_ |= flags;
-  if ((cdrom_irq_enable_ & flags) != 0) {
+  cdrom_irq_flags_ |= static_cast<uint8_t>(flags & 0x1Fu);
+  cdrom_update_irq_line();
+}
+
+void MmioBus::cdrom_update_irq_line() {
+  if ((cdrom_irq_flags_ & cdrom_irq_enable_) != 0) {
     irq_stat_ |= (1u << 2);
+  } else {
+    irq_stat_ &= static_cast<uint16_t>(~(1u << 2));
   }
+}
+
+void MmioBus::cdrom_set_irq_enable(uint8_t enable) {
+  cdrom_irq_enable_ = static_cast<uint8_t>(enable & 0x1Fu);
+  cdrom_update_irq_line();
 }
 
 struct CdromSectorMeta {
@@ -505,12 +615,49 @@ MmioBus::CdromFillResult MmioBus::cdrom_fill_data_fifo() {
 }
 
 uint8_t MmioBus::cdrom_status() const {
+  bool data_ready = !cdrom_data_fifo_.empty() && (cdrom_request_ & 0x01u);
   return cdrom_status_byte(cdrom_image_.loaded(),
                            cdrom_reading_,
-                           !cdrom_data_fifo_.empty(),
+                           data_ready,
                            cdrom_error_,
                            cdrom_playing_,
                            cdrom_seeking_);
+}
+
+uint16_t MmioBus::joy_status() const {
+  uint16_t status = static_cast<uint16_t>(kJoyStatTxReady | kJoyStatTxEmpty);
+  if (joy_rx_ready_) {
+    status |= kJoyStatRxReady;
+  }
+  if (joy_ack_) {
+    status |= kJoyStatDsr;
+  }
+  return status;
+}
+
+uint16_t MmioBus::sio1_status() const {
+  uint16_t status = static_cast<uint16_t>(kJoyStatTxReady | kJoyStatTxEmpty);
+  if (sio1_rx_ready_) {
+    status |= kJoyStatRxReady;
+  }
+  status |= static_cast<uint16_t>(1u << 7); // DSR/CTS high
+  status |= static_cast<uint16_t>(1u << 8);
+  return status;
+}
+
+uint16_t MmioBus::spu_status() const {
+  uint16_t ctrl = spu_ctrl_;
+  uint16_t status = static_cast<uint16_t>(ctrl & 0x3Fu);
+  if (ctrl & (1u << 5)) {
+    status |= static_cast<uint16_t>(1u << 7);
+  }
+  uint16_t transfer = (ctrl >> 4) & 0x3u;
+  if (transfer == 2) {
+    status |= static_cast<uint16_t>(1u << 8);
+  } else if (transfer == 3) {
+    status |= static_cast<uint16_t>(1u << 9);
+  }
+  return status;
 }
 
 static uint32_t cdrom_read_period_cycles(uint8_t mode) {
@@ -587,6 +734,7 @@ void MmioBus::cdrom_execute_command(uint8_t cmd) {
       cdrom_reading_ = true;
       cdrom_playing_ = false;
       cdrom_seeking_ = false;
+      cdrom_request_ |= 0x01u;
       cdrom_read_period_ = cdrom_read_period_cycles(cdrom_mode_);
       cdrom_read_timer_ = std::max(1u, cdrom_read_period_);
       cdrom_data_fifo_.clear();
@@ -606,6 +754,7 @@ void MmioBus::cdrom_execute_command(uint8_t cmd) {
       cdrom_reading_ = false;
       cdrom_playing_ = false;
       cdrom_read_timer_ = 0;
+      cdrom_request_ &= static_cast<uint8_t>(~0x01u);
       cdrom_push_response(cdrom_status());
       cdrom_raise_irq(0x01);
       break;
@@ -614,6 +763,7 @@ void MmioBus::cdrom_execute_command(uint8_t cmd) {
       cdrom_reading_ = false;
       cdrom_playing_ = false;
       cdrom_read_timer_ = 0;
+      cdrom_request_ &= static_cast<uint8_t>(~0x01u);
       cdrom_push_response(cdrom_status());
       cdrom_raise_irq(0x01);
       break;
@@ -624,6 +774,7 @@ void MmioBus::cdrom_execute_command(uint8_t cmd) {
       cdrom_playing_ = false;
       cdrom_muted_ = false;
       cdrom_seeking_ = false;
+      cdrom_request_ = 0;
       cdrom_filter_file_ = 0;
       cdrom_filter_channel_ = 0;
       cdrom_session_ = 1;
@@ -809,6 +960,7 @@ void MmioBus::cdrom_execute_command(uint8_t cmd) {
       cdrom_playing_ = false;
       cdrom_muted_ = false;
       cdrom_seeking_ = false;
+      cdrom_request_ = 0;
       cdrom_filter_file_ = 0;
       cdrom_filter_channel_ = 0;
       cdrom_read_timer_ = 0;
@@ -860,31 +1012,159 @@ uint32_t MmioBus::offset(uint32_t addr) const {
 }
 
 uint8_t MmioBus::read8(uint32_t addr) {
+  if (addr == 0x1F801070 || addr == 0x1F801071) { // I_STAT
+    return (addr & 1) ? static_cast<uint8_t>((irq_stat_ >> 8) & 0xFFu)
+                      : static_cast<uint8_t>(irq_stat_ & 0xFFu);
+  }
+  if (addr == 0x1F801074 || addr == 0x1F801075) { // I_MASK
+    return (addr & 1) ? static_cast<uint8_t>((irq_mask_ >> 8) & 0xFFu)
+                      : static_cast<uint8_t>(irq_mask_ & 0xFFu);
+  }
+  if (addr == kJoyData) {
+    uint8_t value = 0xFF;
+    if (!joy_response_queue_.empty()) {
+      value = joy_response_queue_.front();
+      joy_response_queue_.pop_front();
+    } else if (joy_rx_ready_) {
+      value = joy_rx_data_;
+    }
+    joy_rx_ready_ = !joy_response_queue_.empty();
+    joy_ack_ = joy_rx_ready_;
+    if (!joy_rx_ready_ && joy_tx_queue_.empty() && joy_tx_delay_cycles_ == 0) {
+      joy_session_active_ = false;
+      joy_phase_ = 0;
+      joy_device_ = 0;
+    }
+    return value;
+  }
+  if (addr == kJoyStat || addr == kJoyStat + 1) {
+    uint16_t status = joy_status();
+    return (addr == kJoyStat) ? static_cast<uint8_t>(status & 0xFFu)
+                              : static_cast<uint8_t>((status >> 8) & 0xFFu);
+  }
+  if (addr == kJoyMode || addr == kJoyMode + 1) {
+    return (addr == kJoyMode) ? static_cast<uint8_t>(joy_mode_ & 0xFFu)
+                              : static_cast<uint8_t>((joy_mode_ >> 8) & 0xFFu);
+  }
+  if (addr == kJoyCtrl || addr == kJoyCtrl + 1) {
+    return (addr == kJoyCtrl) ? static_cast<uint8_t>(joy_ctrl_ & 0xFFu)
+                              : static_cast<uint8_t>((joy_ctrl_ >> 8) & 0xFFu);
+  }
+  if (addr == kJoyBaud || addr == kJoyBaud + 1) {
+    return (addr == kJoyBaud) ? static_cast<uint8_t>(joy_baud_ & 0xFFu)
+                              : static_cast<uint8_t>((joy_baud_ >> 8) & 0xFFu);
+  }
+  if (addr == kSio1Data) {
+    uint8_t value = sio1_rx_ready_ ? sio1_rx_data_ : 0xFF;
+    sio1_rx_ready_ = false;
+    return value;
+  }
+  if (addr == kSio1Stat || addr == kSio1Stat + 1) {
+    uint16_t status = sio1_status();
+    return (addr == kSio1Stat) ? static_cast<uint8_t>(status & 0xFFu)
+                               : static_cast<uint8_t>((status >> 8) & 0xFFu);
+  }
+  if (addr == kSio1Mode || addr == kSio1Mode + 1) {
+    return (addr == kSio1Mode) ? static_cast<uint8_t>(sio1_mode_ & 0xFFu)
+                               : static_cast<uint8_t>((sio1_mode_ >> 8) & 0xFFu);
+  }
+  if (addr == kSio1Ctrl || addr == kSio1Ctrl + 1) {
+    return (addr == kSio1Ctrl) ? static_cast<uint8_t>(sio1_ctrl_ & 0xFFu)
+                               : static_cast<uint8_t>((sio1_ctrl_ >> 8) & 0xFFu);
+  }
+  if (addr == kSio1Misc || addr == kSio1Misc + 1) {
+    return (addr == kSio1Misc) ? static_cast<uint8_t>(sio1_misc_ & 0xFFu)
+                               : static_cast<uint8_t>((sio1_misc_ >> 8) & 0xFFu);
+  }
+  if (addr == kSio1Baud || addr == kSio1Baud + 1) {
+    return (addr == kSio1Baud) ? static_cast<uint8_t>(sio1_baud_ & 0xFFu)
+                               : static_cast<uint8_t>((sio1_baud_ >> 8) & 0xFFu);
+  }
+  if (addr == kSpuStatAddr || addr == kSpuStatAddr + 1) {
+    uint16_t status = spu_status();
+    return (addr == kSpuStatAddr) ? static_cast<uint8_t>(status & 0xFFu)
+                                  : static_cast<uint8_t>((status >> 8) & 0xFFu);
+  }
+  if (addr == kSpuCtrlAddr || addr == kSpuCtrlAddr + 1) {
+    return (addr == kSpuCtrlAddr) ? static_cast<uint8_t>(spu_ctrl_ & 0xFFu)
+                                  : static_cast<uint8_t>((spu_ctrl_ >> 8) & 0xFFu);
+  }
   if (addr >= 0x1F801800 && addr < 0x1F801804) {
     uint32_t reg = addr - 0x1F801800;
     if (reg == 0) {
       cdrom_status_ = cdrom_status();
-      return static_cast<uint8_t>((cdrom_status_ & 0xFCu) | (cdrom_index_ & 0x03u));
+      uint8_t value = static_cast<uint8_t>((cdrom_status_ & 0xFCu) | (cdrom_index_ & 0x03u));
+      if (cdrom_log_enabled()) {
+        std::cerr << "[cdrom] read reg0 value=0x" << std::hex << std::setw(2) << std::setfill('0')
+                  << static_cast<int>(value) << "\n";
+      }
+      return value;
     }
     if (reg == 1) {
-      if (!cdrom_response_fifo_.empty()) {
-        uint8_t value = cdrom_response_fifo_.front();
-        cdrom_response_fifo_.erase(cdrom_response_fifo_.begin());
-        return value;
+      uint8_t value = 0;
+      switch (cdrom_index_ & 0x3u) {
+        case 0: {
+          if (!cdrom_response_fifo_.empty()) {
+            value = cdrom_response_fifo_.front();
+            cdrom_response_fifo_.erase(cdrom_response_fifo_.begin());
+          }
+          break;
+        }
+        case 1:
+          value = cdrom_irq_enable_;
+          break;
+        case 2:
+          value = cdrom_vol_ll_;
+          break;
+        case 3:
+          value = cdrom_vol_rr_;
+          break;
       }
-      return 0;
+      if (cdrom_log_enabled()) {
+        std::cerr << "[cdrom] read reg1 idx=" << std::dec << static_cast<int>(cdrom_index_ & 0x3u)
+                  << " value=0x" << std::hex << std::setw(2) << std::setfill('0')
+                  << static_cast<int>(value) << "\n";
+      }
+      return value;
     }
     if (reg == 2) {
-      cdrom_maybe_fill_data();
-      if (!cdrom_data_fifo_.empty()) {
-        uint8_t value = cdrom_data_fifo_.front();
-        cdrom_data_fifo_.erase(cdrom_data_fifo_.begin());
-        return value;
+      uint8_t value = 0;
+      switch (cdrom_index_ & 0x3u) {
+        case 0: {
+          if ((cdrom_request_ & 0x01u) != 0) {
+            cdrom_maybe_fill_data();
+          }
+          if ((cdrom_request_ & 0x01u) != 0 && !cdrom_data_fifo_.empty()) {
+            value = cdrom_data_fifo_.front();
+            cdrom_data_fifo_.erase(cdrom_data_fifo_.begin());
+          }
+          break;
+        }
+        case 1:
+          value = cdrom_irq_flags_;
+          break;
+        case 2:
+          value = cdrom_vol_lr_;
+          break;
+        case 3:
+          value = cdrom_vol_rl_;
+          break;
       }
-      return 0;
+      if (cdrom_log_enabled()) {
+        std::cerr << "[cdrom] read reg2 idx=" << std::dec << static_cast<int>(cdrom_index_ & 0x3u)
+                  << " value=0x" << std::hex << std::setw(2) << std::setfill('0')
+                  << static_cast<int>(value) << "\n";
+      }
+      return value;
     }
     if (reg == 3) {
-      return cdrom_irq_flags_;
+      uint8_t value = (cdrom_index_ & 0x3u) < 2 ? cdrom_irq_flags_ : cdrom_vol_apply_;
+      if (cdrom_log_enabled()) {
+        std::cerr << "[cdrom] read reg3 idx=" << std::dec << static_cast<int>(cdrom_index_ & 0x3u)
+                  << " value=0x" << std::hex << std::setw(2) << std::setfill('0')
+                  << static_cast<int>(value) << "\n";
+      }
+      return value;
     }
   }
 
@@ -896,6 +1176,79 @@ uint8_t MmioBus::read8(uint32_t addr) {
 }
 
 uint16_t MmioBus::read16(uint32_t addr) {
+  if (addr >= 0x1F801800 && addr < 0x1F801804) {
+    uint16_t lo = read8(addr);
+    uint16_t hi = read8(addr + 1);
+    return static_cast<uint16_t>(lo | (hi << 8));
+  }
+  if (addr == 0x1F801070) { // I_STAT
+    return irq_stat_;
+  }
+  if (addr == 0x1F801074) { // I_MASK
+    return irq_mask_;
+  }
+  if (addr == kJoyStat) {
+    return joy_status();
+  }
+  if (addr == kJoyMode) {
+    return joy_mode_;
+  }
+  if (addr == kJoyCtrl) {
+    return joy_ctrl_;
+  }
+  if (addr == kJoyBaud) {
+    return joy_baud_;
+  }
+  if (addr == kSio1Stat) {
+    return sio1_status();
+  }
+  if (addr == kSio1Mode) {
+    return sio1_mode_;
+  }
+  if (addr == kSio1Ctrl) {
+    return sio1_ctrl_;
+  }
+  if (addr == kSio1Misc) {
+    return sio1_misc_;
+  }
+  if (addr == kSio1Baud) {
+    return sio1_baud_;
+  }
+  if (addr == kSpuStatAddr) {
+    return spu_status();
+  }
+  if (addr == kSpuCtrlAddr) {
+    return spu_ctrl_;
+  }
+  if (addr >= 0x1F801100 && addr < 0x1F801130) {
+    uint32_t timer = (addr - 0x1F801100) / 0x10;
+    uint32_t reg = (addr - 0x1F801100) % 0x10;
+    if (timer < 3) {
+      if (reg == 0x0) {
+        uint16_t value = timer_count_[timer];
+        if (irq_log_enabled()) {
+          static uint16_t last_count[3] = {0xFFFFu, 0xFFFFu, 0xFFFFu};
+          if (value != last_count[timer]) {
+            last_count[timer] = value;
+            std::cerr << "[timer] T" << timer << " count=0x" << std::hex << std::setw(4)
+                      << std::setfill('0') << value << "\n";
+          }
+        }
+        return value;
+      }
+      if (reg == 0x4) {
+        uint16_t value = timer_mode_[timer];
+        timer_mode_[timer] &= static_cast<uint16_t>(~((1u << 11) | (1u << 12)));
+        if (!timer_irq_toggle_[timer]) {
+          timer_mode_[timer] |= static_cast<uint16_t>(1u << 10);
+        }
+        return value;
+      }
+      if (reg == 0x8) {
+        return timer_target_[timer];
+      }
+    }
+  }
   if (addr >= 0x1F801800 && addr < 0x1F801804) {
     uint16_t lo = read8(addr);
     uint16_t hi = read8(addr + 1);
@@ -913,6 +1266,72 @@ uint32_t MmioBus::read32(uint32_t addr) {
   uint32_t off = offset(addr);
   if (off + 3 >= kSize) {
     return 0xFFFFFFFF;
+  }
+
+  if (addr >= 0x1F801100 && addr < 0x1F801130) {
+    uint32_t timer = (addr - 0x1F801100) / 0x10;
+    uint32_t reg = (addr - 0x1F801100) % 0x10;
+    if (timer < 3) {
+      if (reg == 0x0) {
+        uint16_t value = timer_count_[timer];
+        if (irq_log_enabled()) {
+          static uint16_t last_count32[3] = {0xFFFFu, 0xFFFFu, 0xFFFFu};
+          if (value != last_count32[timer]) {
+            last_count32[timer] = value;
+            std::cerr << "[timer] T" << timer << " count=0x" << std::hex << std::setw(4)
+                      << std::setfill('0') << value << "\n";
+          }
+        }
+        return value;
+      }
+      if (reg == 0x4) {
+        uint16_t value = timer_mode_[timer];
+        timer_mode_[timer] &= static_cast<uint16_t>(~((1u << 11) | (1u << 12)));
+        if (!timer_irq_toggle_[timer]) {
+          timer_mode_[timer] |= static_cast<uint16_t>(1u << 10);
+        } else {
+          timer_mode_[timer] &= static_cast<uint16_t>(~(1u << 10));
+        }
+        return value;
+      }
+      if (reg == 0x8) {
+        return timer_target_[timer];
+      }
+    }
+  }
+
+  if (addr == kJoyStat) {
+    return joy_status();
+  }
+  if (addr == kJoyMode) {
+    return joy_mode_;
+  }
+  if (addr == kJoyCtrl) {
+    return joy_ctrl_;
+  }
+  if (addr == kJoyBaud) {
+    return joy_baud_;
+  }
+  if (addr == kSio1Stat) {
+    return sio1_status();
+  }
+  if (addr == kSio1Mode) {
+    return sio1_mode_;
+  }
+  if (addr == kSio1Ctrl) {
+    return sio1_ctrl_;
+  }
+  if (addr == kSio1Misc) {
+    return sio1_misc_;
+  }
+  if (addr == kSio1Baud) {
+    return sio1_baud_;
+  }
+  if (addr == kSpuStatAddr) {
+    return spu_status();
+  }
+  if (addr == kSpuCtrlAddr) {
+    return spu_ctrl_;
   }
 
   if (addr >= 0x1F801800 && addr < 0x1F801804) {
@@ -934,10 +1353,23 @@ uint32_t MmioBus::read32(uint32_t addr) {
       gpu_read_latch_ = gpu_read_fifo_.front();
       gpu_read_fifo_.erase(gpu_read_fifo_.begin());
     }
+    if (gpu_read_log_enabled()) {
+      std::cerr << "[gpu] GPUREAD=0x" << std::hex << std::setw(8) << std::setfill('0')
+                << gpu_read_latch_ << "\n";
+    }
     return gpu_read_latch_;
   }
   if (addr == 0x1F801814) { // GPU GP1
-    return compute_gpustat();
+    uint32_t stat = compute_gpustat();
+    if (gpustat_log_enabled()) {
+      static uint32_t last_stat = 0xFFFFFFFFu;
+      if (stat != last_stat) {
+        last_stat = stat;
+        std::cerr << "[gpu] GPUSTAT=0x" << std::hex << std::setw(8) << std::setfill('0')
+                  << stat << " dma_ready=" << ((stat & (1u << 28)) ? 1 : 0) << "\n";
+      }
+    }
+    return stat;
   }
 
   if (addr >= 0x1F801080 && addr < 0x1F8010F0) { // DMA channels
@@ -951,14 +1383,40 @@ uint32_t MmioBus::read32(uint32_t addr) {
         return dma_bcr_[index];
       }
       if (reg == 0x8) {
-        return dma_chcr_[index];
+        uint32_t value = dma_chcr_[index];
+        if (dma_log_enabled()) {
+          static uint32_t last_chcr[7] = {0xFFFFFFFFu, 0xFFFFFFFFu, 0xFFFFFFFFu, 0xFFFFFFFFu,
+                                          0xFFFFFFFFu, 0xFFFFFFFFu, 0xFFFFFFFFu};
+          if (value != last_chcr[index]) {
+            last_chcr[index] = value;
+            std::cerr << "[dma] CHCR" << std::dec << index << "=0x" << std::hex << std::setw(8)
+                      << std::setfill('0') << value << "\n";
+          }
+        }
+        return value;
       }
     }
   }
   if (addr == 0x1F8010F0) { // DPCR
+    if (dma_log_enabled()) {
+      static uint32_t last_dpcr = 0xFFFFFFFFu;
+      if (dma_dpcr_ != last_dpcr) {
+        last_dpcr = dma_dpcr_;
+        std::cerr << "[dma] DPCR=0x" << std::hex << std::setw(8) << std::setfill('0')
+                  << dma_dpcr_ << "\n";
+      }
+    }
     return dma_dpcr_;
   }
   if (addr == 0x1F8010F4) { // DICR
+    if (dma_log_enabled()) {
+      static uint32_t last_dicr = 0xFFFFFFFFu;
+      if (dma_dicr_ != last_dicr) {
+        last_dicr = dma_dicr_;
+        std::cerr << "[dma] DICR=0x" << std::hex << std::setw(8) << std::setfill('0')
+                  << dma_dicr_ << "\n";
+      }
+    }
     return dma_dicr_;
   }
 
@@ -970,7 +1428,12 @@ uint32_t MmioBus::read32(uint32_t addr) {
         return timer_count_[timer];
       }
       if (reg == 0x4) {
-        return timer_mode_[timer];
+        uint16_t value = timer_mode_[timer];
+        timer_mode_[timer] &= static_cast<uint16_t>(~((1u << 11) | (1u << 12)));
+        if (!timer_irq_toggle_[timer]) {
+          timer_mode_[timer] |= static_cast<uint16_t>(1u << 10);
+        }
+        return value;
       }
       if (reg == 0x8) {
         return timer_target_[timer];
@@ -997,26 +1460,193 @@ uint32_t MmioBus::read32(uint32_t addr) {
 }
 
 void MmioBus::write8(uint32_t addr, uint8_t value) {
+  if (addr == 0x1F801070 || addr == 0x1F801071) { // I_STAT
+    uint16_t mask = (addr & 1) ? static_cast<uint16_t>(value) << 8
+                               : static_cast<uint16_t>(value);
+    irq_stat_ &= static_cast<uint16_t>(~mask);
+    return;
+  }
+  if (addr == 0x1F801074 || addr == 0x1F801075) { // I_MASK
+    if (addr & 1) {
+      irq_mask_ = static_cast<uint16_t>((irq_mask_ & 0x00FFu) | (static_cast<uint16_t>(value) << 8));
+    } else {
+      irq_mask_ = static_cast<uint16_t>((irq_mask_ & 0xFF00u) | value);
+    }
+    return;
+  }
+  if (addr == kJoyData) {
+    if (!joy_session_active_) {
+      if (value == 0x01) {
+        joy_device_ = 1; // pad
+      } else if (value == 0x81) {
+        joy_device_ = 2; // memory card
+      } else {
+        joy_device_ = 0;
+      }
+      joy_session_active_ = true;
+      joy_phase_ = 0;
+    }
+
+    uint8_t response = 0xFF;
+    if (joy_device_ == 1) {
+      switch (joy_phase_) {
+        case 0:
+          response = 0xFF;
+          break;
+        case 1:
+          response = 0x41;
+          break;
+        case 2:
+          response = 0x5A;
+          break;
+        case 3:
+          response = 0xFF;
+          break;
+        case 4:
+          response = 0xFF;
+          break;
+        default:
+          response = 0xFF;
+          break;
+      }
+    } else if (joy_device_ == 2) {
+      if (joy_phase_ == 0) {
+        response = 0xFF;
+      } else if (joy_phase_ == 1) {
+        response = 0x5A;
+      } else {
+        response = 0x00;
+      }
+    } else {
+      response = 0xFF;
+    }
+
+    joy_tx_queue_.push_back(response);
+    joy_phase_ = static_cast<uint8_t>(joy_phase_ + 1);
+    if (joy_tx_delay_cycles_ == 0) {
+      joy_tx_delay_cycles_ = joy_byte_delay_cycles(joy_baud_);
+    }
+    return;
+  }
+  if (addr == kJoyMode) {
+    joy_mode_ = static_cast<uint16_t>((joy_mode_ & 0xFF00u) | value);
+  } else if (addr == kJoyMode + 1) {
+    joy_mode_ = static_cast<uint16_t>((joy_mode_ & 0x00FFu) | (static_cast<uint16_t>(value) << 8));
+  } else if (addr == kJoyCtrl) {
+    joy_ctrl_ = static_cast<uint16_t>((joy_ctrl_ & 0xFF00u) | value);
+    if (joy_ctrl_ & 0x0010u) {
+      joy_irq_pending_ = false;
+      irq_stat_ &= static_cast<uint16_t>(~(1u << 7));
+    }
+    if (joy_ctrl_ & 0x0040u) {
+      joy_rx_ready_ = false;
+      joy_ack_ = false;
+      joy_tx_queue_.clear();
+      joy_tx_delay_cycles_ = 0;
+      joy_response_queue_.clear();
+      joy_session_active_ = false;
+      joy_phase_ = 0;
+      joy_device_ = 0;
+    }
+  } else if (addr == kJoyCtrl + 1) {
+    joy_ctrl_ = static_cast<uint16_t>((joy_ctrl_ & 0x00FFu) | (static_cast<uint16_t>(value) << 8));
+    if (joy_ctrl_ & 0x0010u) {
+      joy_irq_pending_ = false;
+      irq_stat_ &= static_cast<uint16_t>(~(1u << 7));
+    }
+    if (joy_ctrl_ & 0x0040u) {
+      joy_rx_ready_ = false;
+      joy_ack_ = false;
+      joy_tx_queue_.clear();
+      joy_tx_delay_cycles_ = 0;
+      joy_response_queue_.clear();
+      joy_session_active_ = false;
+      joy_phase_ = 0;
+      joy_device_ = 0;
+    }
+  } else if (addr == kJoyBaud) {
+    joy_baud_ = static_cast<uint16_t>((joy_baud_ & 0xFF00u) | value);
+  } else if (addr == kJoyBaud + 1) {
+    joy_baud_ = static_cast<uint16_t>((joy_baud_ & 0x00FFu) | (static_cast<uint16_t>(value) << 8));
+  } else if (addr == kSio1Data) {
+    sio1_rx_data_ = 0xFF;
+    sio1_rx_ready_ = true;
+    return;
+  } else if (addr == kSio1Mode) {
+    sio1_mode_ = static_cast<uint16_t>((sio1_mode_ & 0xFF00u) | value);
+  } else if (addr == kSio1Mode + 1) {
+    sio1_mode_ = static_cast<uint16_t>((sio1_mode_ & 0x00FFu) | (static_cast<uint16_t>(value) << 8));
+  } else if (addr == kSio1Ctrl) {
+    sio1_ctrl_ = static_cast<uint16_t>((sio1_ctrl_ & 0xFF00u) | value);
+  } else if (addr == kSio1Ctrl + 1) {
+    sio1_ctrl_ = static_cast<uint16_t>((sio1_ctrl_ & 0x00FFu) | (static_cast<uint16_t>(value) << 8));
+  } else if (addr == kSio1Misc) {
+    sio1_misc_ = static_cast<uint16_t>((sio1_misc_ & 0xFF00u) | value);
+  } else if (addr == kSio1Misc + 1) {
+    sio1_misc_ = static_cast<uint16_t>((sio1_misc_ & 0x00FFu) | (static_cast<uint16_t>(value) << 8));
+  } else if (addr == kSio1Baud) {
+    sio1_baud_ = static_cast<uint16_t>((sio1_baud_ & 0xFF00u) | value);
+  } else if (addr == kSio1Baud + 1) {
+    sio1_baud_ = static_cast<uint16_t>((sio1_baud_ & 0x00FFu) | (static_cast<uint16_t>(value) << 8));
+  }
   if (addr >= 0x1F801800 && addr < 0x1F801804) {
     uint32_t reg = addr - 0x1F801800;
+    if (cdrom_log_enabled()) {
+      std::cerr << "[cdrom] write reg" << reg
+                << " value=0x" << std::hex << std::setw(2) << std::setfill('0')
+                << static_cast<int>(value) << "\n";
+    }
     if (reg == 0) {
       cdrom_index_ = value & 0x03u;
     } else if (reg == 1) {
-      cdrom_execute_command(value);
+      switch (cdrom_index_ & 0x3u) {
+        case 0:
+          cdrom_execute_command(value);
+          break;
+        case 1:
+          cdrom_set_irq_enable(value);
+          break;
+        case 2:
+          cdrom_vol_ll_ = value;
+          break;
+        case 3:
+          cdrom_vol_rr_ = value;
+          break;
+      }
     } else if (reg == 2) {
-      cdrom_param_fifo_.push_back(value);
+      switch (cdrom_index_ & 0x3u) {
+        case 0:
+          cdrom_param_fifo_.push_back(value);
+          break;
+        case 1:
+          cdrom_set_irq_enable(value);
+          break;
+        case 2:
+          cdrom_vol_lr_ = value;
+          break;
+        case 3:
+          cdrom_vol_rl_ = value;
+          break;
+      }
     } else if (reg == 3) {
       uint8_t bits = static_cast<uint8_t>(value & 0x1Fu);
       if ((value & 0x80u) == 0) {
-        cdrom_irq_enable_ = bits;
-      }
-      if (value & 0x80u) {
+        if ((cdrom_index_ & 0x3u) == 0) {
+          cdrom_request_ = value;
+          if (cdrom_request_ & 0x01u) {
+            cdrom_maybe_fill_data();
+          }
+        } else if ((cdrom_index_ & 0x3u) >= 2) {
+          cdrom_vol_apply_ = value;
+        }
+        if ((cdrom_index_ & 0x3u) <= 1) {
+          cdrom_set_irq_enable(bits);
+        }
+      } else {
         uint8_t ack = bits;
         if (ack) {
           cdrom_irq_flags_ &= static_cast<uint8_t>(~ack);
-          if ((cdrom_irq_flags_ & cdrom_irq_enable_) == 0) {
-            irq_stat_ &= static_cast<uint16_t>(~(1u << 2));
-          }
+          cdrom_update_irq_line();
         }
       }
     }
@@ -1033,6 +1663,58 @@ void MmioBus::write8(uint32_t addr, uint8_t value) {
 }
 
 void MmioBus::write16(uint32_t addr, uint16_t value) {
+  if (addr == 0x1F801070) { // I_STAT
+    if (irq_log_enabled() && value != 0) {
+      std::cerr << "[irq] I_STAT clear=0x" << std::hex << std::setw(4) << std::setfill('0')
+                << value << "\n";
+    }
+    irq_stat_ &= static_cast<uint16_t>(~value);
+    return;
+  }
+  if (addr == 0x1F801074) { // I_MASK
+    if (irq_log_enabled()) {
+      std::cerr << "[irq] I_MASK=0x" << std::hex << std::setw(4) << std::setfill('0')
+                << value << "\n";
+    }
+    irq_mask_ = value;
+    return;
+  }
+  if (addr >= 0x1F801800 && addr < 0x1F801804) {
+    write8(addr, static_cast<uint8_t>(value & 0xFFu));
+    write8(addr + 1, static_cast<uint8_t>((value >> 8) & 0xFFu));
+    return;
+  }
+  if (addr == kJoyMode) {
+    joy_mode_ = value;
+  } else if (addr == kJoyCtrl) {
+    joy_ctrl_ = value;
+    if (joy_ctrl_ & 0x0010u) {
+      joy_irq_pending_ = false;
+      irq_stat_ &= static_cast<uint16_t>(~(1u << 7));
+    }
+    if (joy_ctrl_ & 0x0040u) {
+      joy_rx_ready_ = false;
+      joy_ack_ = false;
+      joy_tx_queue_.clear();
+      joy_tx_delay_cycles_ = 0;
+      joy_response_queue_.clear();
+      joy_session_active_ = false;
+      joy_phase_ = 0;
+      joy_device_ = 0;
+    }
+  } else if (addr == kJoyBaud) {
+    joy_baud_ = value;
+  } else if (addr == kSio1Mode) {
+    sio1_mode_ = value;
+  } else if (addr == kSio1Ctrl) {
+    sio1_ctrl_ = value;
+  } else if (addr == kSio1Misc) {
+    sio1_misc_ = value;
+  } else if (addr == kSio1Baud) {
+    sio1_baud_ = value;
+  } else if (addr == kSpuCtrlAddr) {
+    spu_ctrl_ = value;
+  }
   uint32_t off = offset(addr);
   if (off + 1 < kSize) {
     raw_[off] = static_cast<uint8_t>(value & 0xFF);
@@ -1052,20 +1734,33 @@ void MmioBus::write16(uint32_t addr, uint16_t value) {
     if (timer < 3) {
       if (reg == 0x0) {
         timer_count_[timer] = value;
-      } else if (reg == 0x4) {
-        timer_mode_[timer] = value;
-        timer_irq_enable_[timer] = (value & (1u << 4)) != 0;
-        timer_irq_repeat_[timer] = (value & (1u << 5)) != 0;
-        timer_irq_on_overflow_[timer] = (value & (1u << 6)) != 0;
-        timer_irq_on_target_[timer] = (value & (1u << 7)) != 0;
-        if (value & (1u << 3)) {
-          timer_count_[timer] = 0;
+        if (irq_log_enabled()) {
+          std::cerr << "[timer] T" << timer << " count=0x" << std::hex << std::setw(4)
+                    << std::setfill('0') << value << "\n";
         }
-        if (value & (1u << 8)) {
-          irq_stat_ &= static_cast<uint16_t>(~(1u << (4 + timer)));
+      } else if (reg == 0x4) {
+        timer_irq_on_target_[timer] = (value & (1u << 4)) != 0;
+        timer_irq_on_overflow_[timer] = (value & (1u << 5)) != 0;
+        timer_irq_repeat_[timer] = (value & (1u << 6)) != 0;
+        timer_irq_toggle_[timer] = (value & (1u << 7)) != 0;
+        timer_irq_enable_[timer] = timer_irq_on_target_[timer] || timer_irq_on_overflow_[timer];
+        timer_mode_[timer] = static_cast<uint16_t>(value & 0x03FFu);
+        timer_mode_[timer] |= static_cast<uint16_t>(1u << 10);
+        timer_mode_[timer] &= static_cast<uint16_t>(~((1u << 11) | (1u << 12)));
+        timer_count_[timer] = 0;
+        irq_stat_ &= static_cast<uint16_t>(~(1u << (4 + timer)));
+        timer_sync_waiting_[timer] =
+            ((timer_mode_[timer] & 0x1u) && (((timer_mode_[timer] >> 1) & 0x3u) == 3u));
+        if (irq_log_enabled()) {
+          std::cerr << "[timer] T" << timer << " mode=0x" << std::hex << std::setw(4)
+                    << std::setfill('0') << timer_mode_[timer] << "\n";
         }
       } else if (reg == 0x8) {
         timer_target_[timer] = value;
+        if (irq_log_enabled()) {
+          std::cerr << "[timer] T" << timer << " target=0x" << std::hex << std::setw(4)
+                    << std::setfill('0') << value << "\n";
+        }
       }
     }
   }
@@ -1075,7 +1770,7 @@ void MmioBus::write16(uint32_t addr, uint16_t value) {
       std::cerr << "[irq] I_STAT clear=0x" << std::hex << std::setw(4) << std::setfill('0')
                 << value << "\n";
     }
-    irq_stat_ &= value;
+    irq_stat_ &= static_cast<uint16_t>(~value);
   } else if (addr == 0x1F801074) { // I_MASK
     if (irq_log_enabled()) {
       std::cerr << "[irq] I_MASK=0x" << std::hex << std::setw(4) << std::setfill('0')
@@ -1091,8 +1786,21 @@ void MmioBus::write32(uint32_t addr, uint32_t value) {
     return;
   }
 
+  if (addr >= 0x1F801100 && addr < 0x1F801130) {
+    write16(addr, static_cast<uint16_t>(value & 0xFFFFu));
+    return;
+  }
+
+  if (addr >= 0x1F801800 && addr < 0x1F801804) {
+    write8(addr, static_cast<uint8_t>(value & 0xFFu));
+    write8(addr + 1, static_cast<uint8_t>((value >> 8) & 0xFFu));
+    write8(addr + 2, static_cast<uint8_t>((value >> 16) & 0xFFu));
+    write8(addr + 3, static_cast<uint8_t>((value >> 24) & 0xFFu));
+    return;
+  }
+
   if (addr == 0x1F801070) { // I_STAT
-    irq_stat_ &= static_cast<uint16_t>(value);
+    irq_stat_ &= static_cast<uint16_t>(~value);
   } else if (addr == 0x1F801074) { // I_MASK
     irq_mask_ = static_cast<uint16_t>(value);
   }
@@ -1100,6 +1808,7 @@ void MmioBus::write32(uint32_t addr, uint32_t value) {
   if (addr == 0x1F801810) { // GPU GP0
     gpu_gp0_ = value;
     gpu_gp0_fifo_.push_back(value);
+    apply_gp0_state(value);
     uint32_t penalty = gpu_gp0_fifo_.size() > 32 ? 4u : 2u;
     gpu_busy_cycles_ = std::min<uint32_t>(gpu_busy_cycles_ + penalty, 100000);
   } else if (addr == 0x1F801814) { // GPU GP1
@@ -1108,6 +1817,10 @@ void MmioBus::write32(uint32_t addr, uint32_t value) {
     uint32_t penalty = gpu_gp1_fifo_.size() > 32 ? 2u : 1u;
     gpu_busy_cycles_ = std::min<uint32_t>(gpu_busy_cycles_ + penalty, 100000);
     uint8_t cmd = static_cast<uint8_t>(value >> 24);
+    if (gpu_cmd_log_enabled()) {
+      std::cerr << "[gpu] GP1=0x" << std::hex << std::setw(8) << std::setfill('0') << value
+                << " cmd=0x" << std::setw(2) << static_cast<uint32_t>(cmd) << "\n";
+    }
     switch (cmd) {
       case 0x00: { // Reset GPU
         reset_gpu_state();
@@ -1255,10 +1968,34 @@ void MmioBus::write32(uint32_t addr, uint32_t value) {
     if (timer < 3) {
       if (reg == 0x0) {
         timer_count_[timer] = static_cast<uint16_t>(value);
+        if (irq_log_enabled()) {
+          std::cerr << "[timer] T" << timer << " count=0x" << std::hex << std::setw(4)
+                    << std::setfill('0') << timer_count_[timer] << "\n";
+        }
       } else if (reg == 0x4) {
-        timer_mode_[timer] = static_cast<uint16_t>(value);
+        uint16_t mode = static_cast<uint16_t>(value);
+        timer_irq_on_target_[timer] = (mode & (1u << 4)) != 0;
+        timer_irq_on_overflow_[timer] = (mode & (1u << 5)) != 0;
+        timer_irq_repeat_[timer] = (mode & (1u << 6)) != 0;
+        timer_irq_toggle_[timer] = (mode & (1u << 7)) != 0;
+        timer_irq_enable_[timer] = timer_irq_on_target_[timer] || timer_irq_on_overflow_[timer];
+        timer_mode_[timer] = static_cast<uint16_t>(mode & 0x03FFu);
+        timer_mode_[timer] |= static_cast<uint16_t>(1u << 10);
+        timer_mode_[timer] &= static_cast<uint16_t>(~((1u << 11) | (1u << 12)));
+        timer_count_[timer] = 0;
+        irq_stat_ &= static_cast<uint16_t>(~(1u << (4 + timer)));
+        timer_sync_waiting_[timer] =
+            ((timer_mode_[timer] & 0x1u) && (((timer_mode_[timer] >> 1) & 0x3u) == 3u));
+        if (irq_log_enabled()) {
+          std::cerr << "[timer] T" << timer << " mode=0x" << std::hex << std::setw(4)
+                    << std::setfill('0') << timer_mode_[timer] << "\n";
+        }
       } else if (reg == 0x8) {
         timer_target_[timer] = static_cast<uint16_t>(value);
+        if (irq_log_enabled()) {
+          std::cerr << "[timer] T" << timer << " target=0x" << std::hex << std::setw(4)
+                    << std::setfill('0') << timer_target_[timer] << "\n";
+        }
       }
     }
   }
@@ -1267,6 +2004,9 @@ void MmioBus::write32(uint32_t addr, uint32_t value) {
     uint32_t index = (addr - 0x1F801C00) / 2;
     if (index < spu_regs_.size()) {
       spu_regs_[index] = static_cast<uint16_t>(value);
+    }
+    if (addr == kSpuCtrlAddr) {
+      spu_ctrl_ = static_cast<uint16_t>(value);
     }
   }
 
@@ -1296,6 +2036,8 @@ void MmioBus::tick(uint32_t cycles) {
   constexpr uint32_t kCpuCyclesPerFrameNtsc = 33868800 / 60;
   constexpr uint32_t kCpuCyclesPerFramePal = 33868800 / 50;
   bool vblank_pulse = false;
+  uint32_t hblank_pulses = 0;
+  bool vblank_start_pulse = false;
 
   if (gpu_busy_cycles_ > 0) {
     if (gpu_busy_cycles_ > cycles) {
@@ -1320,6 +2062,26 @@ void MmioBus::tick(uint32_t cycles) {
   if (period == 0) {
     period = kCpuCyclesPerFrameNtsc;
   }
+  uint32_t lines_per_frame = gpu_vmode_pal_ ? 314u : 262u;
+  uint32_t vblank_start_line = gpu_vmode_pal_ ? 256u : 240u;
+  uint32_t line_period = period / std::max(1u, lines_per_frame);
+  if (line_period == 0) {
+    line_period = 1;
+  }
+  gpu_line_cycle_accum_ += cycles;
+  while (gpu_line_cycle_accum_ >= line_period) {
+    gpu_line_cycle_accum_ -= line_period;
+    hblank_pulses++;
+    gpu_line_++;
+    if (gpu_line_ >= lines_per_frame) {
+      gpu_line_ = 0;
+    }
+    if (gpu_line_ == vblank_start_line) {
+      vblank_start_pulse = true;
+    }
+  }
+  bool in_vblank = gpu_line_ >= vblank_start_line;
+  bool in_hblank = hblank_pulses > 0;
   uint32_t field_period = gpu_interlace_ ? std::max(1u, period / 2) : period;
   if (gpu_field_cycle_accum_ >= field_period) {
     if (gpu_interlace_) {
@@ -1349,15 +2111,109 @@ void MmioBus::tick(uint32_t cycles) {
   for (int i = 0; i < 3; ++i) {
     uint32_t before = timer_count_[i];
     uint16_t mode = timer_mode_[i];
-    if (mode & (1u << 2)) { // halted
-      continue;
+    uint32_t clock = (mode >> 8) & 0x3u;
+    uint32_t ticks = 0;
+    if (i == 2) {
+      if (clock & 0x1u) {
+        timer_cycle_accum_[i] += cycles;
+        ticks = timer_cycle_accum_[i] / 8;
+        timer_cycle_accum_[i] %= 8;
+      } else {
+        ticks = cycles;
+      }
+    } else if (i == 1) {
+      switch (clock) {
+        case 0:
+          ticks = cycles;
+          break;
+        case 1:
+          ticks = hblank_pulses;
+          break;
+        case 2:
+          timer_cycle_accum_[i] += cycles;
+          ticks = timer_cycle_accum_[i] / 8;
+          timer_cycle_accum_[i] %= 8;
+          break;
+        case 3:
+          timer_cycle_accum_[i] += hblank_pulses;
+          ticks = timer_cycle_accum_[i] / 8;
+          timer_cycle_accum_[i] %= 8;
+          break;
+        default:
+          ticks = cycles;
+          break;
+      }
+    } else { // i == 0
+      switch (clock) {
+        case 0:
+          ticks = cycles;
+          break;
+        case 1:
+          timer_cycle_accum_[i] += cycles;
+          ticks = timer_cycle_accum_[i] / 8;
+          timer_cycle_accum_[i] %= 8;
+          break;
+        case 2:
+          ticks = cycles;
+          break;
+        case 3:
+          timer_cycle_accum_[i] += cycles;
+          ticks = timer_cycle_accum_[i] / 8;
+          timer_cycle_accum_[i] %= 8;
+          break;
+        default:
+          ticks = cycles;
+          break;
+      }
     }
-    uint32_t after = (before + cycles) & 0xFFFFu;
+
+    bool sync_enable = (mode & 0x1u) != 0;
+    uint32_t sync_mode = (mode >> 1) & 0x3u;
+    bool blank = (i == 0) ? in_hblank : (i == 1 ? in_vblank : false);
+    bool blank_start = (i == 0) ? in_hblank : (i == 1 ? vblank_start_pulse : false);
+    if (sync_enable) {
+      if (sync_mode == 3) {
+        if (timer_sync_waiting_[i]) {
+          if (blank_start) {
+            timer_sync_waiting_[i] = false;
+          } else {
+            ticks = 0;
+          }
+        }
+      }
+      if (sync_mode == 0) {
+        if (blank) {
+          ticks = 0;
+        }
+      } else if (sync_mode == 1) {
+        if (blank_start) {
+          before = 0;
+          timer_count_[i] = 0;
+        }
+      } else if (sync_mode == 2) {
+        if (blank_start) {
+          before = 0;
+          timer_count_[i] = 0;
+        }
+        if (!blank) {
+          ticks = 0;
+        }
+      }
+    }
+
+    uint32_t full = before + ticks;
+    uint32_t after = full & 0xFFFFu;
     timer_count_[i] = static_cast<uint16_t>(after);
     uint16_t target = timer_target_[i];
-    if (target != 0 && before < target && after >= target) {
+    if (ticks > 0 && target != 0 && before < target && full >= target && full <= 0x1FFFFu) {
+      timer_mode_[i] |= static_cast<uint16_t>(1u << 11);
       if (timer_irq_enable_[i] && timer_irq_on_target_[i]) {
         irq_stat_ |= static_cast<uint16_t>(1u << (4 + i));
+        if (timer_irq_toggle_[i]) {
+          timer_mode_[i] ^= static_cast<uint16_t>(1u << 10);
+        } else {
+          timer_mode_[i] &= static_cast<uint16_t>(~(1u << 10));
+        }
       }
       if (mode & (1u << 3)) { // reset on target
         timer_count_[i] = 0;
@@ -1366,9 +2222,15 @@ void MmioBus::tick(uint32_t cycles) {
         timer_irq_enable_[i] = false;
       }
     }
-    if (before > after && timer_irq_on_overflow_[i]) {
-      if (timer_irq_enable_[i]) {
+    if (full > 0xFFFFu) {
+      timer_mode_[i] |= static_cast<uint16_t>(1u << 12);
+      if (timer_irq_on_overflow_[i] && timer_irq_enable_[i]) {
         irq_stat_ |= static_cast<uint16_t>(1u << (4 + i));
+        if (timer_irq_toggle_[i]) {
+          timer_mode_[i] ^= static_cast<uint16_t>(1u << 10);
+        } else {
+          timer_mode_[i] &= static_cast<uint16_t>(~(1u << 10));
+        }
       }
       if (!timer_irq_repeat_[i]) {
         timer_irq_enable_[i] = false;
@@ -1396,13 +2258,45 @@ void MmioBus::tick(uint32_t cycles) {
     }
   }
 
+  if (joy_tx_delay_cycles_ > 0) {
+    if (joy_tx_delay_cycles_ > cycles) {
+      joy_tx_delay_cycles_ -= cycles;
+    } else {
+      joy_tx_delay_cycles_ = 0;
+    }
+  }
+  while (joy_tx_delay_cycles_ == 0 && !joy_tx_queue_.empty()) {
+    uint8_t response = joy_tx_queue_.front();
+    joy_tx_queue_.pop_front();
+    joy_response_queue_.push_back(response);
+    joy_rx_ready_ = true;
+    joy_ack_ = true;
+    if ((joy_ctrl_ & 0x1000u) && !joy_irq_pending_) {
+      joy_irq_pending_ = true;
+      irq_stat_ |= static_cast<uint16_t>(1u << 7);
+    }
+    if (!joy_tx_queue_.empty()) {
+      joy_tx_delay_cycles_ = joy_byte_delay_cycles(joy_baud_);
+    }
+  }
+
   if (vblank_pulse) {
     irq_stat_ |= 1u << 0;
+    if (irq_log_enabled()) {
+      std::cerr << "[irq] VBLANK irq_stat=0x" << std::hex << std::setw(4) << std::setfill('0')
+                << irq_stat_ << "\n";
+    }
   }
 }
 
 uint32_t MmioBus::consume_dma_channel() {
-  if (dma_active_channel_ == 3 && cdrom_data_fifo_.empty()) {
+  if (dma_active_channel_ == 2) {
+    if ((compute_gpustat() & (1u << 28)) == 0) {
+      return 0xFFFFFFFFu;
+    }
+  }
+  if (dma_active_channel_ == 3 &&
+      ((cdrom_request_ & 0x01u) == 0 || cdrom_data_fifo_.empty())) {
     return 0xFFFFFFFFu;
   }
   uint32_t channel = dma_active_channel_;
@@ -1454,6 +2348,9 @@ bool MmioBus::load_cdrom_image(const std::string &path, std::string &error) {
 }
 
 size_t MmioBus::read_cdrom_data(uint8_t *dst, size_t len) {
+  if ((cdrom_request_ & 0x01u) == 0) {
+    return 0;
+  }
   size_t read = 0;
   while (read < len) {
     cdrom_maybe_fill_data();
@@ -1522,6 +2419,8 @@ void MmioBus::apply_gp0_state(uint32_t word) {
       gpu_tex_depth_ = (mode >> 7) & 0x3u;
       gpu_dither_ = (mode & (1u << 9)) != 0;
       gpu_draw_to_display_ = (mode & (1u << 10)) != 0;
+      gpu_mask_set_ = (mode & (1u << 11)) != 0;
+      gpu_mask_eval_ = (mode & (1u << 12)) != 0;
       break;
     }
     case 0xE2: { // Texture window
