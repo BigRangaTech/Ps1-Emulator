@@ -35,7 +35,7 @@ cmake --build build -j
 
 ## TODO
 - GPU: verify GPUSTAT timing (ready/busy, DMA request) against real hardware.
-- GPU: tighten DMA pacing and GPUREAD/VRAM transfer timing.
+- GPU: tighten DMA pacing and GPUREAD/VRAM transfer timing (busy penalties scaled down; GP0/GP1 penalty=1; DMA busy scaled by /32).
 - GPU: verify 24-bit display mapping against real hardware behavior.
 - GPU: validate GPU->CPU DMA transfers with real BIOS/ROM paths.
 - GPU: confirm 24-bit horizontal scaling and display range mapping with known test ROMs.
@@ -44,10 +44,11 @@ cmake --build build -j
 - GPU: validate linked-list DMA behavior with real BIOS/ROM command chains.
 - GPU: validate interlace field cadence and display range interaction.
 - GPU: validate DMA backpressure draining behavior against real timing.
-- Timers: verify root counter sync/clock source edge cases against hardware (halt-bit fix implemented; 32-bit timer read/write supported).
+- DMA: honor DPCR priority ordering (currently services pending channels in index order).
+- Timers: verify root counter sync/clock source edge cases against hardware (blank-reset + cycle-accum resets added; 32-bit timer read/write supported).
 - Timers: confirm BIOS tick at 0x00089DDC advances (use `PS1EMU_WATCH_PHYS`; currently only initial writes observed).
 - Tests: add coverage for each module as new features land (CPU/GPU/CD-ROM/SPU/Input).
-- CD-ROM: validate command semantics (GetID/ReadTOC/Seek timing), raw sector modes, XA audio stub, and IRQ/DRQ gating (index + IRQ enable mapping implemented; BIOS still not issuing CD-ROM commands in current boot trace).
+- CD-ROM: validate command semantics (GetID/ReadTOC/Seek timing), raw sector modes, XA audio stub, and IRQ/DRQ gating (command/IRQ cadence now delayed + IRQ queueing; BIOS still not issuing CD-ROM commands in current boot trace).
 - CD-ROM: validate XA filter behavior and subheader parsing against known test discs; add real ADPCM decode.
 - CD-ROM: validate XA 8-bit ADPCM behavior and channel interleave accuracy against real discs.
 - SPU: wire PCM mixer into a real audio backend (SDL2) and implement volume/mix controls.

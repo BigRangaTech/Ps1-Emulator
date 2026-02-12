@@ -53,6 +53,7 @@ void MmioBus::reset() {
   cdrom_data_fifo_.clear();
   cdrom_xa_audio_queue_.clear();
   cdrom_pending_.clear();
+  cdrom_irq_queue_.clear();
   cdrom_index_ = 0;
   cdrom_status_ = 0;
   cdrom_irq_flags_ = 0;
@@ -86,7 +87,7 @@ void MmioBus::reset() {
   std::memset(timer_irq_on_overflow_, 0, sizeof(timer_irq_on_overflow_));
   std::memset(timer_irq_on_target_, 0, sizeof(timer_irq_on_target_));
   std::memset(timer_irq_toggle_, 0, sizeof(timer_irq_toggle_));
-  dma_active_channel_ = 0xFFFFFFFFu;
+  dma_pending_mask_ = 0;
   joy_mode_ = 0;
   joy_ctrl_ = 0;
   joy_baud_ = 0;
@@ -320,6 +321,7 @@ static uint8_t cdrom_status_byte(bool has_disc,
 static constexpr uint32_t kCdromSeekDelayCycles = 33868800 / 60;
 static constexpr uint32_t kCdromGetIdDelayCycles = 33868800 / 120;
 static constexpr uint32_t kCdromTocDelayCycles = 33868800 / 30;
+static constexpr uint32_t kCdromCmdDelayCycles = 1024;
 
 static uint32_t recompute_dma_master(uint32_t dicr) {
   bool master = (dicr & (1u << 23)) != 0;
@@ -421,7 +423,15 @@ void MmioBus::cdrom_queue_response(uint32_t delay_cycles,
 }
 
 void MmioBus::cdrom_raise_irq(uint8_t flags) {
-  cdrom_irq_flags_ |= static_cast<uint8_t>(flags & 0x1Fu);
+  uint8_t masked = static_cast<uint8_t>(flags & 0x1Fu);
+  if (masked == 0) {
+    return;
+  }
+  if (cdrom_irq_flags_ != 0) {
+    cdrom_irq_queue_.push_back(masked);
+    return;
+  }
+  cdrom_irq_flags_ = masked;
   cdrom_update_irq_line();
 }
 
@@ -616,9 +626,11 @@ MmioBus::CdromFillResult MmioBus::cdrom_fill_data_fifo() {
 
 uint8_t MmioBus::cdrom_status() const {
   bool data_ready = !cdrom_data_fifo_.empty() && (cdrom_request_ & 0x01u);
+  bool response_ready = !cdrom_response_fifo_.empty();
+  bool ready = data_ready || response_ready;
   return cdrom_status_byte(cdrom_image_.loaded(),
                            cdrom_reading_,
-                           data_ready,
+                           ready,
                            cdrom_error_,
                            cdrom_playing_,
                            cdrom_seeking_);
@@ -695,6 +707,10 @@ void MmioBus::cdrom_execute_command(uint8_t cmd) {
     std::cerr << oss.str() << "\n";
   }
 
+  auto queue_status = [&](uint8_t irq_flags, bool clear_seeking = false) {
+    cdrom_queue_response(kCdromCmdDelayCycles, irq_flags, {cdrom_status()}, clear_seeking);
+  };
+
   switch (cmd) {
     case 0x00: { // Sync
       cdrom_push_response(cdrom_status());
@@ -712,8 +728,7 @@ void MmioBus::cdrom_execute_command(uint8_t cmd) {
       } else {
         cdrom_error_ = true;
       }
-      cdrom_push_response(cdrom_status());
-      cdrom_raise_irq(0x01);
+      queue_status(0x01);
       break;
     }
     case 0x03: { // Play
@@ -741,8 +756,7 @@ void MmioBus::cdrom_execute_command(uint8_t cmd) {
       if (!cdrom_image_.loaded()) {
         cdrom_error_ = true;
       }
-      cdrom_push_response(cdrom_status());
-      cdrom_raise_irq(0x04);
+      queue_status(0x04);
       break;
     }
     case 0x07: { // MotorOn
@@ -900,9 +914,11 @@ void MmioBus::cdrom_execute_command(uint8_t cmd) {
       cdrom_playing_ = false;
       cdrom_read_timer_ = 0;
       cdrom_seeking_ = true;
-      cdrom_push_response(cdrom_status());
-      cdrom_raise_irq(0x04);
-      cdrom_queue_response(kCdromSeekDelayCycles, 0x01, {cdrom_status()}, true);
+      queue_status(0x04);
+      uint32_t delay = (kCdromSeekDelayCycles > kCdromCmdDelayCycles)
+                           ? (kCdromSeekDelayCycles - kCdromCmdDelayCycles)
+                           : 1u;
+      cdrom_queue_response(delay, 0x01, {cdrom_status()}, true);
       break;
     }
     case 0x17: { // SetClock
@@ -937,8 +953,7 @@ void MmioBus::cdrom_execute_command(uint8_t cmd) {
       break;
     }
     case 0x1A: { // GetID
-      cdrom_push_response(cdrom_status());
-      cdrom_raise_irq(0x04);
+      queue_status(0x04);
       uint8_t disc_type = cdrom_image_.loaded() ? 0x20 : 0x00;
       char region = cdrom_image_.loaded() ? cdrom_image_.region_code() : 'I';
       std::vector<uint8_t> response = {
@@ -951,7 +966,10 @@ void MmioBus::cdrom_execute_command(uint8_t cmd) {
           static_cast<uint8_t>('E'),
           static_cast<uint8_t>(region),
       };
-      cdrom_queue_response(kCdromGetIdDelayCycles, 0x01, std::move(response));
+      uint32_t delay = (kCdromGetIdDelayCycles > kCdromCmdDelayCycles)
+                           ? (kCdromGetIdDelayCycles - kCdromCmdDelayCycles)
+                           : 1u;
+      cdrom_queue_response(delay, 0x01, std::move(response));
       break;
     }
     case 0x1C: { // Reset
@@ -981,8 +999,7 @@ void MmioBus::cdrom_execute_command(uint8_t cmd) {
     }
     case 0x1E: { // ReadTOC
       cdrom_seeking_ = true;
-      cdrom_push_response(cdrom_status());
-      cdrom_raise_irq(0x04);
+      queue_status(0x04);
       uint8_t first_track = cdrom_image_.first_track();
       uint8_t last_track = cdrom_image_.last_track();
       uint8_t mm = 0, ss = 0, ff = 0;
@@ -995,7 +1012,10 @@ void MmioBus::cdrom_execute_command(uint8_t cmd) {
           ss,
           ff,
       };
-      cdrom_queue_response(kCdromTocDelayCycles, 0x01, std::move(response), true);
+      uint32_t delay = (kCdromTocDelayCycles > kCdromCmdDelayCycles)
+                           ? (kCdromTocDelayCycles - kCdromCmdDelayCycles)
+                           : 1u;
+      cdrom_queue_response(delay, 0x01, std::move(response), true);
       break;
     }
     default: {
@@ -1646,6 +1666,10 @@ void MmioBus::write8(uint32_t addr, uint8_t value) {
         uint8_t ack = bits;
         if (ack) {
           cdrom_irq_flags_ &= static_cast<uint8_t>(~ack);
+          if (cdrom_irq_flags_ == 0 && !cdrom_irq_queue_.empty()) {
+            cdrom_irq_flags_ = cdrom_irq_queue_.front();
+            cdrom_irq_queue_.pop_front();
+          }
           cdrom_update_irq_line();
         }
       }
@@ -1734,6 +1758,7 @@ void MmioBus::write16(uint32_t addr, uint16_t value) {
     if (timer < 3) {
       if (reg == 0x0) {
         timer_count_[timer] = value;
+        timer_cycle_accum_[timer] = 0;
         if (irq_log_enabled()) {
           std::cerr << "[timer] T" << timer << " count=0x" << std::hex << std::setw(4)
                     << std::setfill('0') << value << "\n";
@@ -1748,6 +1773,7 @@ void MmioBus::write16(uint32_t addr, uint16_t value) {
         timer_mode_[timer] |= static_cast<uint16_t>(1u << 10);
         timer_mode_[timer] &= static_cast<uint16_t>(~((1u << 11) | (1u << 12)));
         timer_count_[timer] = 0;
+        timer_cycle_accum_[timer] = 0;
         irq_stat_ &= static_cast<uint16_t>(~(1u << (4 + timer)));
         timer_sync_waiting_[timer] =
             ((timer_mode_[timer] & 0x1u) && (((timer_mode_[timer] >> 1) & 0x3u) == 3u));
@@ -1809,12 +1835,12 @@ void MmioBus::write32(uint32_t addr, uint32_t value) {
     gpu_gp0_ = value;
     gpu_gp0_fifo_.push_back(value);
     apply_gp0_state(value);
-    uint32_t penalty = gpu_gp0_fifo_.size() > 32 ? 4u : 2u;
+    uint32_t penalty = 1;
     gpu_busy_cycles_ = std::min<uint32_t>(gpu_busy_cycles_ + penalty, 100000);
   } else if (addr == 0x1F801814) { // GPU GP1
     gpu_gp1_ = value;
     gpu_gp1_fifo_.push_back(value);
-    uint32_t penalty = gpu_gp1_fifo_.size() > 32 ? 2u : 1u;
+    uint32_t penalty = 1;
     gpu_busy_cycles_ = std::min<uint32_t>(gpu_busy_cycles_ + penalty, 100000);
     uint8_t cmd = static_cast<uint8_t>(value >> 24);
     if (gpu_cmd_log_enabled()) {
@@ -1933,7 +1959,7 @@ void MmioBus::write32(uint32_t addr, uint32_t value) {
       } else if (reg == 0x8) {
         dma_chcr_[index] = value;
         if (value & (1u << 24)) {
-          dma_active_channel_ = index;
+          dma_pending_mask_ |= (1u << index);
           if (irq_log_enabled()) {
             std::cerr << "[irq] DMA start ch=" << std::dec << index
                       << " madr=0x" << std::hex << std::setw(8) << std::setfill('0')
@@ -1968,6 +1994,7 @@ void MmioBus::write32(uint32_t addr, uint32_t value) {
     if (timer < 3) {
       if (reg == 0x0) {
         timer_count_[timer] = static_cast<uint16_t>(value);
+        timer_cycle_accum_[timer] = 0;
         if (irq_log_enabled()) {
           std::cerr << "[timer] T" << timer << " count=0x" << std::hex << std::setw(4)
                     << std::setfill('0') << timer_count_[timer] << "\n";
@@ -1983,6 +2010,7 @@ void MmioBus::write32(uint32_t addr, uint32_t value) {
         timer_mode_[timer] |= static_cast<uint16_t>(1u << 10);
         timer_mode_[timer] &= static_cast<uint16_t>(~((1u << 11) | (1u << 12)));
         timer_count_[timer] = 0;
+        timer_cycle_accum_[timer] = 0;
         irq_stat_ &= static_cast<uint16_t>(~(1u << (4 + timer)));
         timer_sync_waiting_[timer] =
             ((timer_mode_[timer] & 0x1u) && (((timer_mode_[timer] >> 1) & 0x3u) == 3u));
@@ -2176,6 +2204,9 @@ void MmioBus::tick(uint32_t cycles) {
         if (timer_sync_waiting_[i]) {
           if (blank_start) {
             timer_sync_waiting_[i] = false;
+            timer_count_[i] = 0;
+            timer_cycle_accum_[i] = 0;
+            ticks = 0;
           } else {
             ticks = 0;
           }
@@ -2189,11 +2220,15 @@ void MmioBus::tick(uint32_t cycles) {
         if (blank_start) {
           before = 0;
           timer_count_[i] = 0;
+          timer_cycle_accum_[i] = 0;
+          ticks = 0;
         }
       } else if (sync_mode == 2) {
         if (blank_start) {
           before = 0;
           timer_count_[i] = 0;
+          timer_cycle_accum_[i] = 0;
+          ticks = 0;
         }
         if (!blank) {
           ticks = 0;
@@ -2217,6 +2252,7 @@ void MmioBus::tick(uint32_t cycles) {
       }
       if (mode & (1u << 3)) { // reset on target
         timer_count_[i] = 0;
+        timer_cycle_accum_[i] = 0;
       }
       if (!timer_irq_repeat_[i]) {
         timer_irq_enable_[i] = false;
@@ -2239,12 +2275,14 @@ void MmioBus::tick(uint32_t cycles) {
   }
 
   if (!cdrom_pending_.empty()) {
-    while (!cdrom_pending_.empty()) {
+    uint32_t remaining = cycles;
+    while (!cdrom_pending_.empty() && remaining > 0) {
       auto &pending = cdrom_pending_.front();
-      if (pending.delay_cycles > cycles) {
-        pending.delay_cycles -= cycles;
+      if (pending.delay_cycles > remaining) {
+        pending.delay_cycles -= remaining;
         break;
       }
+      remaining -= pending.delay_cycles;
       pending.delay_cycles = 0;
       if (pending.clear_seeking) {
         cdrom_seeking_ = false;
@@ -2290,18 +2328,23 @@ void MmioBus::tick(uint32_t cycles) {
 }
 
 uint32_t MmioBus::consume_dma_channel() {
-  if (dma_active_channel_ == 2) {
-    if ((compute_gpustat() & (1u << 28)) == 0) {
-      return 0xFFFFFFFFu;
-    }
-  }
-  if (dma_active_channel_ == 3 &&
-      ((cdrom_request_ & 0x01u) == 0 || cdrom_data_fifo_.empty())) {
+  if (dma_pending_mask_ == 0) {
     return 0xFFFFFFFFu;
   }
-  uint32_t channel = dma_active_channel_;
-  dma_active_channel_ = 0xFFFFFFFFu;
-  if (channel < 7) {
+  for (uint32_t channel = 0; channel < 7; ++channel) {
+    if ((dma_pending_mask_ & (1u << channel)) == 0) {
+      continue;
+    }
+    if (dma_dpcr_ != 0 && (dma_dpcr_ & (1u << (3 + channel * 4))) == 0) {
+      continue;
+    }
+    if (channel == 2 && (compute_gpustat() & (1u << 28)) == 0) {
+      continue;
+    }
+    if (channel == 3 && ((cdrom_request_ & 0x01u) == 0 || cdrom_data_fifo_.empty())) {
+      continue;
+    }
+    dma_pending_mask_ &= ~(1u << channel);
     bool master = (dma_dicr_ & (1u << 23)) != 0;
     bool enable = (dma_dicr_ & (1u << (16 + channel))) != 0;
     if (master && enable) {
@@ -2486,7 +2529,8 @@ void MmioBus::gpu_add_busy(uint32_t cycles) {
   if (cycles == 0) {
     return;
   }
-  gpu_busy_cycles_ = std::min<uint32_t>(gpu_busy_cycles_ + cycles, 100000);
+  uint32_t scaled = std::max(1u, cycles / 32u);
+  gpu_busy_cycles_ = std::min<uint32_t>(gpu_busy_cycles_ + scaled, 100000);
 }
 
 bool MmioBus::gpu_ready_for_commands() const {

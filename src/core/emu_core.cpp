@@ -609,7 +609,7 @@ void EmulatorCore::process_dma() {
       total_words = 1;
     }
     bool decrement = (chcr & (1u << 1)) != 0;
-    uint32_t sync_mode = (chcr >> 8) & 0x3u;
+    uint32_t sync_mode = (chcr >> 9) & 0x3u;
 
     if (sync_mode == 2) { // linked list
       std::vector<uint32_t> words;

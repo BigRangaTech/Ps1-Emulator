@@ -139,7 +139,7 @@ private:
   uint32_t gpu_draw_offset_ = 0;
   uint32_t gpu_line_cycle_accum_ = 0;
   uint32_t gpu_line_ = 0;
-  uint32_t dma_active_channel_ = 0xFFFFFFFFu;
+  uint32_t dma_pending_mask_ = 0;
 
   uint16_t irq_stat_ = 0;
   uint16_t irq_mask_ = 0;
@@ -192,6 +192,7 @@ private:
   uint8_t cdrom_last_submode_ = 0;
   uint8_t cdrom_last_coding_ = 0;
   std::deque<CdromPendingResponse> cdrom_pending_;
+  std::deque<uint8_t> cdrom_irq_queue_;
 
   bool timer_irq_enable_[3] = {};
   bool timer_irq_repeat_[3] = {};

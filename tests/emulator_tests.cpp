@@ -133,6 +133,7 @@ static constexpr uint32_t kCdromReadPeriodCycles = 33868800 / 75;
 static constexpr uint32_t kCdromSeekDelayCycles = 33868800 / 60;
 static constexpr uint32_t kCdromGetIdDelayCycles = 33868800 / 120;
 static constexpr uint32_t kCdromTocDelayCycles = 33868800 / 30;
+static constexpr uint32_t kCdromCmdDelayCycles = 1024;
 
 static std::vector<uint8_t> read_cdrom_response(ps1emu::MmioBus &mmio, size_t count) {
   std::vector<uint8_t> out;
@@ -1175,11 +1176,14 @@ static bool test_cdrom_seek_delay_irq() {
   mmio.write8(0x1F801802, 0x02);
   mmio.write8(0x1F801802, 0x00);
   mmio.write8(0x1F801801, 0x02); // Setloc
+  mmio.tick(kCdromCmdDelayCycles);
   (void)mmio.read8(0x1F801801);
+  CHECK((mmio.read8(0x1F801803) & 0x01) != 0);
   mmio.write8(0x1F801803, 0x80 | 0x01);
   mmio.write8(0x1F801803, 0x1F);
 
   mmio.write8(0x1F801801, 0x15); // SeekL
+  mmio.tick(kCdromCmdDelayCycles);
   uint8_t status = mmio.read8(0x1F801801);
   CHECK((status & 0x08) != 0);
 
@@ -1188,7 +1192,7 @@ static bool test_cdrom_seek_delay_irq() {
   mmio.write8(0x1F801803, 0x80 | 0x04);
   CHECK((mmio.read8(0x1F801803) & 0x04) == 0);
 
-  mmio.tick(kCdromSeekDelayCycles - 1);
+  mmio.tick(kCdromSeekDelayCycles - kCdromCmdDelayCycles - 1);
   CHECK((mmio.read8(0x1F801803) & 0x01) == 0);
   mmio.tick(1);
   CHECK((mmio.read8(0x1F801803) & 0x01) != 0);
@@ -1209,11 +1213,12 @@ static bool test_cdrom_getid_delay_irq() {
   CHECK(mmio.load_cdrom_image(iso.path, error));
 
   mmio.write8(0x1F801801, 0x1A); // GetID
+  mmio.tick(kCdromCmdDelayCycles);
   (void)mmio.read8(0x1F801801);
   CHECK((mmio.read8(0x1F801803) & 0x04) != 0);
   mmio.write8(0x1F801803, 0x80 | 0x04);
 
-  mmio.tick(kCdromGetIdDelayCycles - 1);
+  mmio.tick(kCdromGetIdDelayCycles - kCdromCmdDelayCycles - 1);
   CHECK((mmio.read8(0x1F801803) & 0x01) == 0);
   mmio.tick(1);
   CHECK((mmio.read8(0x1F801803) & 0x01) != 0);
@@ -1241,12 +1246,13 @@ static bool test_cdrom_toc_delay_irq() {
   CHECK(mmio.load_cdrom_image(iso.path, error));
 
   mmio.write8(0x1F801801, 0x1E); // ReadTOC
+  mmio.tick(kCdromCmdDelayCycles);
   uint8_t status = mmio.read8(0x1F801801);
   CHECK((status & 0x08) != 0);
   CHECK((mmio.read8(0x1F801803) & 0x04) != 0);
   mmio.write8(0x1F801803, 0x80 | 0x04);
 
-  mmio.tick(kCdromTocDelayCycles - 1);
+  mmio.tick(kCdromTocDelayCycles - kCdromCmdDelayCycles - 1);
   CHECK((mmio.read8(0x1F801803) & 0x01) == 0);
   mmio.tick(1);
   CHECK((mmio.read8(0x1F801803) & 0x01) != 0);
@@ -1282,36 +1288,33 @@ static bool test_cdrom_irq_ack_overlapping() {
   mmio.write8(0x1F801802, 0x02);
   mmio.write8(0x1F801802, 0x00);
   mmio.write8(0x1F801801, 0x02); // Setloc
+  mmio.tick(kCdromCmdDelayCycles);
   (void)mmio.read8(0x1F801801);
+
   mmio.write8(0x1F801801, 0x06); // ReadN
+  mmio.tick(kCdromCmdDelayCycles);
   (void)mmio.read8(0x1F801801);
 
   uint8_t flags = mmio.read8(0x1F801803);
-  CHECK((flags & 0x04) != 0);
+  CHECK((flags & 0x01) != 0);
   CHECK((mmio.irq_stat() & (1u << 2)) != 0);
 
-  mmio.write8(0x1F801803, 0x80 | 0x04);
-  CHECK((mmio.read8(0x1F801803) & 0x04) == 0);
+  mmio.write8(0x1F801803, 0x80 | 0x01);
+  flags = mmio.read8(0x1F801803);
+  CHECK((flags & 0x04) != 0);
 
+  mmio.tick(kCdromReadPeriodCycles);
+  flags = mmio.read8(0x1F801803);
+  CHECK((flags & 0x02) == 0);
+
+  mmio.write8(0x1F801803, 0x80 | 0x04);
   mmio.tick(kCdromReadPeriodCycles);
   flags = mmio.read8(0x1F801803);
   CHECK((flags & 0x02) != 0);
 
-  mmio.write8(0x1F801801, 0x01); // Getstat
-  (void)mmio.read8(0x1F801801);
-  flags = mmio.read8(0x1F801803);
-  CHECK((flags & 0x03) == 0x03);
-
-  mmio.write8(0x1F801803, 0x80 | 0x01);
-  flags = mmio.read8(0x1F801803);
-  CHECK((flags & 0x02) != 0);
-  CHECK((flags & 0x01) == 0);
-  CHECK((mmio.irq_stat() & (1u << 2)) != 0);
-
   mmio.write8(0x1F801803, 0x80 | 0x02);
   flags = mmio.read8(0x1F801803);
-  CHECK((flags & 0x03) == 0);
-  CHECK((mmio.irq_stat() & (1u << 2)) == 0);
+  CHECK((flags & 0x02) == 0);
   return true;
 }
 
@@ -1345,13 +1348,17 @@ static bool test_cdrom_status_transitions() {
   mmio.write8(0x1F801802, 0x02);
   mmio.write8(0x1F801802, 0x00);
   mmio.write8(0x1F801801, 0x02); // Setloc
+  mmio.tick(kCdromCmdDelayCycles);
   (void)mmio.read8(0x1F801801);
+  CHECK((mmio.read8(0x1F801803) & 0x01) != 0);
+  mmio.write8(0x1F801803, 0x80 | 0x01);
   mmio.write8(0x1F801801, 0x15); // SeekL
+  mmio.tick(kCdromCmdDelayCycles);
   (void)mmio.read8(0x1F801801);
   stat = mmio.read8(0x1F801800);
   CHECK((stat & 0x08) != 0);
 
-  mmio.tick(kCdromSeekDelayCycles);
+  mmio.tick(kCdromSeekDelayCycles - kCdromCmdDelayCycles);
   stat = mmio.read8(0x1F801800);
   CHECK((stat & 0x08) == 0);
 
@@ -1393,15 +1400,19 @@ static bool test_cdrom_read_irq_cadence() {
   mmio.write8(0x1F801802, 0x02);
   mmio.write8(0x1F801802, 0x00);
   mmio.write8(0x1F801801, 0x02); // Setloc
+  mmio.tick(kCdromCmdDelayCycles);
   (void)mmio.read8(0x1F801801);
+  CHECK((mmio.read8(0x1F801803) & 0x01) != 0);
+  mmio.write8(0x1F801803, 0x80 | 0x01);
   mmio.write8(0x1F801801, 0x06); // ReadN
+  mmio.tick(kCdromCmdDelayCycles);
   (void)mmio.read8(0x1F801801);
 
   uint8_t flags = mmio.read8(0x1F801803);
   CHECK((flags & 0x04) != 0);
   mmio.write8(0x1F801803, 0x80 | 0x04);
 
-  mmio.tick(kCdromReadPeriodCycles - 1);
+  mmio.tick(kCdromReadPeriodCycles - kCdromCmdDelayCycles - 1);
   CHECK((mmio.read8(0x1F801803) & 0x02) == 0);
   mmio.tick(1);
   CHECK((mmio.read8(0x1F801803) & 0x02) != 0);
