@@ -209,6 +209,9 @@ private:
   bool joy_irq_pending_ = false;
   std::deque<uint8_t> joy_tx_queue_;
   uint32_t joy_tx_delay_cycles_ = 0;
+  uint32_t joy_rx_delay_cycles_ = 0;
+  uint32_t joy_ack_cycles_ = 0;
+  bool joy_rx_pending_ = false;
   std::deque<uint8_t> joy_response_queue_;
   bool joy_session_active_ = false;
   uint8_t joy_phase_ = 0;

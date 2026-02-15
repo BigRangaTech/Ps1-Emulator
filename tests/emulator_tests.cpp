@@ -144,6 +144,12 @@ static std::vector<uint8_t> read_cdrom_response(ps1emu::MmioBus &mmio, size_t co
   return out;
 }
 
+static void cdrom_set_irq_enable(ps1emu::MmioBus &mmio, uint8_t mask) {
+  mmio.write8(0x1F801800, 0x01); // index 1
+  mmio.write8(0x1F801801, mask);
+  mmio.write8(0x1F801800, 0x00); // back to index 0
+}
+
 static uint8_t to_bcd(uint32_t value) {
   value %= 100;
   return static_cast<uint8_t>(((value / 10) << 4) | (value % 10));
@@ -572,6 +578,29 @@ static bool test_gpu_dma_request_bits() {
   return true;
 }
 
+static bool test_gpu_fifo_ready_bits() {
+  ps1emu::MmioBus mmio;
+  mmio.reset();
+
+  mmio.write32(0x1F801814, 0x04000002u); // DMA dir CPU->GPU
+  for (int i = 0; i < 16; ++i) {
+    mmio.write32(0x1F801810, 0x20000000u);
+  }
+  mmio.tick(64);
+
+  uint32_t stat = mmio.read32(0x1F801814);
+  CHECK((stat & (1u << 26)) == 0);
+  CHECK((stat & (1u << 25)) == 0);
+  CHECK((stat & (1u << 28)) == 0);
+
+  mmio.take_gpu_commands();
+  stat = mmio.read32(0x1F801814);
+  CHECK((stat & (1u << 26)) != 0);
+  CHECK((stat & (1u << 25)) != 0);
+  CHECK((stat & (1u << 28)) != 0);
+  return true;
+}
+
 static bool test_gpu_read_delay() {
   ps1emu::MmioBus mmio;
   mmio.reset();
@@ -589,13 +618,13 @@ static bool test_gpu_read_delay() {
   return true;
 }
 
-static bool test_gpu_stat_busy_decay() {
+static bool test_gpu_stat_ready_after_write() {
   ps1emu::MmioBus mmio;
   mmio.reset();
 
   mmio.write32(0x1F801810, 0x02000000);
   uint32_t stat = mmio.read32(0x1F801814);
-  CHECK((stat & (1u << 26)) == 0);
+  CHECK((stat & (1u << 26)) != 0);
 
   mmio.tick(2);
   stat = mmio.read32(0x1F801814);
@@ -884,6 +913,113 @@ static bool test_timer_irq_on_target() {
   return true;
 }
 
+static bool test_timer_irq_single_shot() {
+  ps1emu::MmioBus mmio;
+  mmio.reset();
+
+  mmio.write16(0x1F801108, 3); // timer0 target
+  mmio.write16(0x1F801104, (1u << 3) | (1u << 4)); // reset on target + irq on target
+
+  mmio.tick(3);
+  CHECK((mmio.irq_stat() & (1u << 4)) != 0);
+  mmio.write16(0x1F801070, static_cast<uint16_t>(1u << 4));
+
+  mmio.tick(3);
+  CHECK((mmio.irq_stat() & (1u << 4)) == 0);
+  return true;
+}
+
+static bool test_timer_irq_toggle_repeat() {
+  ps1emu::MmioBus mmio;
+  mmio.reset();
+
+  mmio.write16(0x1F801108, 3); // timer0 target
+  mmio.write16(0x1F801104, (1u << 3) | (1u << 4) | (1u << 6) | (1u << 7));
+
+  mmio.tick(3);
+  CHECK((mmio.irq_stat() & (1u << 4)) != 0);
+  mmio.write16(0x1F801070, static_cast<uint16_t>(1u << 4));
+
+  mmio.tick(3);
+  CHECK((mmio.irq_stat() & (1u << 4)) == 0);
+
+  mmio.tick(3);
+  CHECK((mmio.irq_stat() & (1u << 4)) != 0);
+  return true;
+}
+
+static bool test_timer_irq_repeat_no_toggle() {
+  ps1emu::MmioBus mmio;
+  mmio.reset();
+
+  mmio.write16(0x1F801108, 2); // timer0 target
+  mmio.write16(0x1F801104, (1u << 3) | (1u << 4) | (1u << 6));
+
+  mmio.tick(2);
+  CHECK((mmio.irq_stat() & (1u << 4)) != 0);
+  mmio.write16(0x1F801070, static_cast<uint16_t>(1u << 4));
+
+  mmio.tick(2);
+  CHECK((mmio.irq_stat() & (1u << 4)) != 0);
+  return true;
+}
+
+static bool test_timer_mode_read_clears_flags() {
+  ps1emu::MmioBus mmio;
+  mmio.reset();
+
+  mmio.write16(0x1F801108, 2); // timer0 target
+  mmio.write16(0x1F801104, (1u << 3) | (1u << 4)); // reset on target + irq on target
+
+  mmio.tick(2);
+  uint16_t mode1 = mmio.read16(0x1F801104);
+  CHECK((mode1 & (1u << 11)) != 0); // target flag
+  CHECK((mode1 & (1u << 10)) == 0); // irq request cleared after event
+  uint16_t mode2 = mmio.read16(0x1F801104);
+  CHECK((mode2 & (1u << 11)) == 0);
+  return true;
+}
+
+static bool test_timer0_clock_div8() {
+  ps1emu::MmioBus mmio;
+  mmio.reset();
+
+  mmio.write16(0x1F801104, 0x0200); // clock source 2 (system/8)
+  mmio.tick(16);
+  CHECK(mmio.read16(0x1F801100) == 2);
+  return true;
+}
+
+static bool test_timer0_clock_dotclock() {
+  ps1emu::MmioBus mmio;
+  mmio.reset();
+
+  mmio.write16(0x1F801104, 0x0100); // clock source 1 (dotclock, approximated)
+  mmio.tick(10);
+  CHECK(mmio.read16(0x1F801100) == 10);
+  return true;
+}
+
+static bool test_timer2_clock_div32() {
+  ps1emu::MmioBus mmio;
+  mmio.reset();
+
+  mmio.write16(0x1F801124, 0x0200); // clock source 2 (system/32)
+  mmio.tick(64);
+  CHECK(mmio.read16(0x1F801120) == 2);
+  return true;
+}
+
+static bool test_timer2_clock_div128() {
+  ps1emu::MmioBus mmio;
+  mmio.reset();
+
+  mmio.write16(0x1F801124, 0x0300); // clock source 3 (system/128)
+  mmio.tick(256);
+  CHECK(mmio.read16(0x1F801120) == 2);
+  return true;
+}
+
 static bool test_joypad_stub_ready() {
   ps1emu::MmioBus mmio;
   mmio.reset();
@@ -898,16 +1034,63 @@ static bool test_joypad_rx_ready_after_write() {
   ps1emu::MmioBus mmio;
   mmio.reset();
 
+  mmio.write16(0x1F80104A, 0x0007); // TX enable + DTR + RX enable
   mmio.write8(0x1F801040, 0x01);
-  mmio.tick(5000);
+  mmio.tick(1);
   uint16_t stat = mmio.read16(0x1F801044);
+  CHECK((stat & 0x0002u) == 0); // RX not ready yet
+  CHECK((stat & 0x0080u) == 0); // DSR/ACK not yet asserted
+
+  mmio.tick(5000);
+  stat = mmio.read16(0x1F801044);
   CHECK((stat & 0x0002u) != 0); // RX ready
   CHECK((stat & 0x0080u) != 0); // DSR/ACK
   uint8_t data = mmio.read8(0x1F801040);
   CHECK(data == 0xFF);
+  mmio.tick(5000);
   stat = mmio.read16(0x1F801044);
   CHECK((stat & 0x0002u) == 0);
   CHECK((stat & 0x0080u) == 0);
+  return true;
+}
+
+static bool test_joypad_dtr_gates_tx() {
+  ps1emu::MmioBus mmio;
+  mmio.reset();
+
+  mmio.write8(0x1F801040, 0x01);
+  mmio.tick(5000);
+  uint16_t stat = mmio.read16(0x1F801044);
+  CHECK((stat & 0x0002u) == 0);
+  CHECK((stat & 0x0080u) == 0);
+
+  mmio.write16(0x1F80104A, 0x0007); // enable DTR/TX/RX
+  mmio.write8(0x1F801040, 0x01);
+  mmio.tick(1);
+  stat = mmio.read16(0x1F801044);
+  CHECK((stat & 0x0002u) == 0);
+  CHECK((stat & 0x0080u) == 0);
+  mmio.tick(5000);
+  stat = mmio.read16(0x1F801044);
+  CHECK((stat & 0x0002u) != 0);
+  CHECK((stat & 0x0080u) != 0);
+  return true;
+}
+
+static bool test_joypad_irq_rearm_on_istat_clear() {
+  ps1emu::MmioBus mmio;
+  mmio.reset();
+
+  mmio.write16(0x1F80104A, 0x1007); // IRQ enable + TX + DTR + RX
+  mmio.write8(0x1F801040, 0x01);
+  mmio.tick(5000);
+  CHECK((mmio.irq_stat() & (1u << 7)) != 0);
+  mmio.write16(0x1F801070, static_cast<uint16_t>(1u << 7));
+  CHECK((mmio.irq_stat() & (1u << 7)) == 0);
+
+  mmio.write8(0x1F801040, 0x01);
+  mmio.tick(5000);
+  CHECK((mmio.irq_stat() & (1u << 7)) != 0);
   return true;
 }
 
@@ -1018,9 +1201,11 @@ static bool test_cdrom_iso_read_mmio() {
   mmio.write8(0x1F801802, 0x02);
   mmio.write8(0x1F801802, 0x00);
   mmio.write8(0x1F801801, 0x02); // Setloc
+  mmio.tick(kCdromCmdDelayCycles);
   (void)mmio.read8(0x1F801801);
 
   mmio.write8(0x1F801801, 0x06); // ReadN
+  mmio.tick(kCdromCmdDelayCycles);
   (void)mmio.read8(0x1F801801);
 
   mmio.tick(kCdromReadPeriodCycles);
@@ -1063,9 +1248,11 @@ static bool test_cdrom_cue_read_mmio() {
   mmio.write8(0x1F801802, 0x02);
   mmio.write8(0x1F801802, 0x01);
   mmio.write8(0x1F801801, 0x02); // Setloc to LBA 1
+  mmio.tick(kCdromCmdDelayCycles);
   (void)mmio.read8(0x1F801801);
 
   mmio.write8(0x1F801801, 0x06);
+  mmio.tick(kCdromCmdDelayCycles);
   (void)mmio.read8(0x1F801801);
 
   mmio.tick(kCdromReadPeriodCycles);
@@ -1081,20 +1268,48 @@ static bool test_cdrom_param_filter_roundtrip() {
 
   mmio.write8(0x1F801802, 0xA5);
   mmio.write8(0x1F801801, 0x0E); // Setmode
+  mmio.tick(kCdromCmdDelayCycles);
   (void)mmio.read8(0x1F801801);
 
   mmio.write8(0x1F801802, 0x12);
   mmio.write8(0x1F801802, 0x34);
   mmio.write8(0x1F801801, 0x0D); // Setfilter
+  mmio.tick(kCdromCmdDelayCycles);
   (void)mmio.read8(0x1F801801);
 
   mmio.write8(0x1F801801, 0x0F); // Getparam
+  mmio.tick(kCdromCmdDelayCycles);
   std::vector<uint8_t> resp = read_cdrom_response(mmio, 5);
   CHECK(resp.size() == 5);
   CHECK(resp[1] == 0xA5);
   CHECK(resp[2] == 0x00);
   CHECK(resp[3] == 0x12);
   CHECK(resp[4] == 0x34);
+  return true;
+}
+
+static bool test_cdrom_cmd_delay_basic() {
+  ScopedTempFile iso("/tmp/ps1emu_cmd_delay.iso");
+  std::vector<uint8_t> data(2048, 0x5A);
+  CHECK(write_binary_file(iso.path, data));
+
+  ps1emu::MmioBus mmio;
+  mmio.reset();
+  std::string error;
+  CHECK(mmio.load_cdrom_image(iso.path, error));
+
+  mmio.write8(0x1F801801, 0x01); // Getstat
+  uint8_t early = mmio.read8(0x1F801801);
+  CHECK(early == 0x00);
+  CHECK((mmio.read8(0x1F801803) & 0x01) == 0);
+
+  mmio.tick(kCdromCmdDelayCycles - 1);
+  CHECK((mmio.read8(0x1F801803) & 0x01) == 0);
+
+  mmio.tick(1);
+  uint8_t late = mmio.read8(0x1F801801);
+  CHECK((late & 0x02) != 0);
+  CHECK((mmio.read8(0x1F801803) & 0x01) != 0);
   return true;
 }
 
@@ -1112,13 +1327,16 @@ static bool test_cdrom_loc_and_tracks() {
   mmio.write8(0x1F801802, 0x02);
   mmio.write8(0x1F801802, 0x00);
   mmio.write8(0x1F801801, 0x02); // Setloc
+  mmio.tick(kCdromCmdDelayCycles);
   (void)mmio.read8(0x1F801801);
 
   mmio.write8(0x1F801801, 0x06); // ReadN
+  mmio.tick(kCdromCmdDelayCycles);
   (void)mmio.read8(0x1F801801);
   mmio.tick(kCdromReadPeriodCycles);
 
   mmio.write8(0x1F801801, 0x10); // GetlocL
+  mmio.tick(kCdromCmdDelayCycles);
   std::vector<uint8_t> resp = read_cdrom_response(mmio, 9);
   uint8_t mm = 0, ss = 0, ff = 0;
   lba_to_bcd(0, mm, ss, ff);
@@ -1128,6 +1346,7 @@ static bool test_cdrom_loc_and_tracks() {
   CHECK(resp[4] == 0x01);
 
   mmio.write8(0x1F801801, 0x11); // GetlocP
+  mmio.tick(kCdromCmdDelayCycles);
   resp = read_cdrom_response(mmio, 9);
   lba_to_bcd(0, mm, ss, ff);
   CHECK(resp[1] == 0x01);
@@ -1140,12 +1359,14 @@ static bool test_cdrom_loc_and_tracks() {
   CHECK(resp[8] == ff);
 
   mmio.write8(0x1F801801, 0x13); // GetTN
+  mmio.tick(kCdromCmdDelayCycles);
   resp = read_cdrom_response(mmio, 3);
   CHECK(resp[1] == 0x01);
   CHECK(resp[2] == 0x01);
 
   mmio.write8(0x1F801802, 0x00);
   mmio.write8(0x1F801801, 0x14); // GetTD track 0 (lead-out)
+  mmio.tick(kCdromCmdDelayCycles);
   resp = read_cdrom_response(mmio, 4);
   lba_to_bcd(1, mm, ss, ff);
   CHECK(resp[1] == mm);
@@ -1154,6 +1375,7 @@ static bool test_cdrom_loc_and_tracks() {
 
   mmio.write8(0x1F801802, 0x01);
   mmio.write8(0x1F801801, 0x14); // GetTD track 1 (start)
+  mmio.tick(kCdromCmdDelayCycles);
   resp = read_cdrom_response(mmio, 4);
   lba_to_bcd(0, mm, ss, ff);
   CHECK(resp[1] == mm);
@@ -1180,7 +1402,7 @@ static bool test_cdrom_seek_delay_irq() {
   (void)mmio.read8(0x1F801801);
   CHECK((mmio.read8(0x1F801803) & 0x01) != 0);
   mmio.write8(0x1F801803, 0x80 | 0x01);
-  mmio.write8(0x1F801803, 0x1F);
+  cdrom_set_irq_enable(mmio, 0x1F);
 
   mmio.write8(0x1F801801, 0x15); // SeekL
   mmio.tick(kCdromCmdDelayCycles);
@@ -1281,7 +1503,7 @@ static bool test_cdrom_irq_ack_overlapping() {
   std::string error;
   CHECK(mmio.load_cdrom_image(iso.path, error));
 
-  mmio.write8(0x1F801803, 0x1F); // enable all
+  cdrom_set_irq_enable(mmio, 0x1F); // enable all
   mmio.write8(0x1F801803, 0x80 | 0x1F); // clear pending
 
   mmio.write8(0x1F801802, 0x00);
@@ -1318,6 +1540,58 @@ static bool test_cdrom_irq_ack_overlapping() {
   return true;
 }
 
+static bool test_cdrom_irq_ack_index1() {
+  ScopedTempFile iso("/tmp/ps1emu_irq_idx1.iso");
+  std::vector<uint8_t> data(2048, 0x5A);
+  CHECK(write_binary_file(iso.path, data));
+
+  ps1emu::MmioBus mmio;
+  mmio.reset();
+  std::string error;
+  CHECK(mmio.load_cdrom_image(iso.path, error));
+
+  cdrom_set_irq_enable(mmio, 0x1F);
+  mmio.write8(0x1F801801, 0x01); // Getstat
+  mmio.tick(kCdromCmdDelayCycles);
+  (void)mmio.read8(0x1F801801);
+  CHECK((mmio.read8(0x1F801803) & 0x01) != 0);
+  CHECK((mmio.irq_stat() & (1u << 2)) != 0);
+
+  mmio.write8(0x1F801800, 0x01); // index 1
+  uint8_t before_enable = mmio.read8(0x1F801801);
+  mmio.write8(0x1F801802, 0x01); // ack via reg2
+  uint8_t after_enable = mmio.read8(0x1F801801);
+  mmio.write8(0x1F801800, 0x00);
+
+  CHECK(before_enable == after_enable);
+  CHECK((mmio.read8(0x1F801803) & 0x01) == 0);
+  CHECK((mmio.irq_stat() & (1u << 2)) == 0);
+  return true;
+}
+
+static bool test_cdrom_irq_enable_gates_line() {
+  ScopedTempFile iso("/tmp/ps1emu_irq_gate.iso");
+  std::vector<uint8_t> data(2048, 0x5A);
+  CHECK(write_binary_file(iso.path, data));
+
+  ps1emu::MmioBus mmio;
+  mmio.reset();
+  std::string error;
+  CHECK(mmio.load_cdrom_image(iso.path, error));
+
+  mmio.write8(0x1F801801, 0x01); // Getstat
+  mmio.tick(kCdromCmdDelayCycles);
+  (void)mmio.read8(0x1F801801);
+  CHECK((mmio.read8(0x1F801803) & 0x01) != 0);
+  CHECK((mmio.irq_stat() & (1u << 2)) == 0);
+
+  cdrom_set_irq_enable(mmio, 0x01);
+  CHECK((mmio.irq_stat() & (1u << 2)) != 0);
+  mmio.write8(0x1F801803, 0x80 | 0x01);
+  CHECK((mmio.irq_stat() & (1u << 2)) == 0);
+  return true;
+}
+
 static bool test_cdrom_status_transitions() {
   ScopedTempFile iso("/tmp/ps1emu_status.iso");
   std::vector<uint8_t> data(2048, 0x5A);
@@ -1328,10 +1602,11 @@ static bool test_cdrom_status_transitions() {
   std::string error;
   CHECK(mmio.load_cdrom_image(iso.path, error));
 
-  mmio.write8(0x1F801803, 0x1F); // enable IRQs
+  cdrom_set_irq_enable(mmio, 0x1F); // enable IRQs
   mmio.write8(0x1F801803, 0x80 | 0x1F);
 
   mmio.write8(0x1F801801, 0x01); // Getstat
+  mmio.tick(kCdromCmdDelayCycles);
   uint8_t stat = mmio.read8(0x1F801801);
   CHECK((stat & 0x02) != 0);
   CHECK((stat & 0x10) == 0);
@@ -1339,6 +1614,7 @@ static bool test_cdrom_status_transitions() {
   CHECK((stat & 0x08) == 0);
 
   mmio.write8(0x1F801801, 0x03); // Play
+  mmio.tick(kCdromCmdDelayCycles);
   (void)mmio.read8(0x1F801801);
   stat = mmio.read8(0x1F801800);
   CHECK((stat & 0x40) != 0);
@@ -1363,18 +1639,21 @@ static bool test_cdrom_status_transitions() {
   CHECK((stat & 0x08) == 0);
 
   mmio.write8(0x1F801801, 0x06); // ReadN
+  mmio.tick(kCdromCmdDelayCycles);
   (void)mmio.read8(0x1F801801);
   stat = mmio.read8(0x1F801800);
   CHECK((stat & 0x10) != 0);
   CHECK((stat & 0x40) == 0);
 
   mmio.write8(0x1F801801, 0x09); // Pause
+  mmio.tick(kCdromCmdDelayCycles);
   (void)mmio.read8(0x1F801801);
   stat = mmio.read8(0x1F801800);
   CHECK((stat & 0x10) == 0);
   CHECK((stat & 0x40) == 0);
 
   mmio.write8(0x1F801801, 0x08); // Stop
+  mmio.tick(kCdromCmdDelayCycles);
   (void)mmio.read8(0x1F801801);
   stat = mmio.read8(0x1F801800);
   CHECK((stat & 0x10) == 0);
@@ -1393,7 +1672,7 @@ static bool test_cdrom_read_irq_cadence() {
   std::string error;
   CHECK(mmio.load_cdrom_image(iso.path, error));
 
-  mmio.write8(0x1F801803, 0x1F); // enable IRQs
+  cdrom_set_irq_enable(mmio, 0x1F); // enable IRQs
   mmio.write8(0x1F801803, 0x80 | 0x1F);
 
   mmio.write8(0x1F801802, 0x00);
@@ -1440,15 +1719,18 @@ static bool test_cdrom_whole_sector_mode1() {
 
   mmio.write8(0x1F801802, 0x20); // whole sector
   mmio.write8(0x1F801801, 0x0E); // Setmode
+  mmio.tick(kCdromCmdDelayCycles);
   (void)mmio.read8(0x1F801801);
 
   mmio.write8(0x1F801802, 0x00);
   mmio.write8(0x1F801802, 0x02);
   mmio.write8(0x1F801802, 0x00);
   mmio.write8(0x1F801801, 0x02); // Setloc
+  mmio.tick(kCdromCmdDelayCycles);
   (void)mmio.read8(0x1F801801);
 
   mmio.write8(0x1F801801, 0x06); // ReadN
+  mmio.tick(kCdromCmdDelayCycles);
   (void)mmio.read8(0x1F801801);
   mmio.tick(kCdromReadPeriodCycles);
 
@@ -1478,15 +1760,18 @@ static bool test_cdrom_mode2_form2_size() {
 
   mmio.write8(0x1F801802, 0x00); // data-only
   mmio.write8(0x1F801801, 0x0E); // Setmode
+  mmio.tick(kCdromCmdDelayCycles);
   (void)mmio.read8(0x1F801801);
 
   mmio.write8(0x1F801802, 0x00);
   mmio.write8(0x1F801802, 0x02);
   mmio.write8(0x1F801802, 0x00);
   mmio.write8(0x1F801801, 0x02); // Setloc
+  mmio.tick(kCdromCmdDelayCycles);
   (void)mmio.read8(0x1F801801);
 
   mmio.write8(0x1F801801, 0x06); // ReadN
+  mmio.tick(kCdromCmdDelayCycles);
   (void)mmio.read8(0x1F801801);
   mmio.tick(kCdromReadPeriodCycles);
 
@@ -1514,15 +1799,18 @@ static bool test_cdrom_xa_audio_queue() {
 
   mmio.write8(0x1F801802, 0x40); // ADPCM enable
   mmio.write8(0x1F801801, 0x0E); // Setmode
+  mmio.tick(kCdromCmdDelayCycles);
   (void)mmio.read8(0x1F801801);
 
   mmio.write8(0x1F801802, 0x00);
   mmio.write8(0x1F801802, 0x02);
   mmio.write8(0x1F801802, 0x00);
   mmio.write8(0x1F801801, 0x02); // Setloc
+  mmio.tick(kCdromCmdDelayCycles);
   (void)mmio.read8(0x1F801801);
 
   mmio.write8(0x1F801801, 0x06); // ReadN
+  mmio.tick(kCdromCmdDelayCycles);
   (void)mmio.read8(0x1F801801);
   mmio.tick(kCdromReadPeriodCycles);
 
@@ -1761,8 +2049,10 @@ static bool test_cdrom_dma_transfer() {
   mmio.write8(0x1F801802, 0x02);
   mmio.write8(0x1F801802, 0x00);
   mmio.write8(0x1F801801, 0x02); // Setloc
+  mmio.tick(kCdromCmdDelayCycles);
   (void)mmio.read8(0x1F801801);
   mmio.write8(0x1F801801, 0x06); // ReadN
+  mmio.tick(kCdromCmdDelayCycles);
   (void)mmio.read8(0x1F801801);
 
   mmio.tick(kCdromReadPeriodCycles);
@@ -1828,8 +2118,9 @@ int main() {
       {"gpu_status_bits", test_gpu_status_bits},
       {"gpu_read_fifo", test_gpu_read_fifo},
       {"gpu_dma_request_bits", test_gpu_dma_request_bits},
+      {"gpu_fifo_ready_bits", test_gpu_fifo_ready_bits},
       {"gpu_read_delay", test_gpu_read_delay},
-      {"gpu_stat_busy_decay", test_gpu_stat_busy_decay},
+      {"gpu_stat_ready_after_write", test_gpu_stat_ready_after_write},
       {"gte_flags_and_saturation", test_gte_flags_and_saturation},
       {"gte_color_fifo_saturation", test_gte_color_fifo_saturation},
       {"gte_divide_overflow", test_gte_divide_overflow},
@@ -1846,8 +2137,18 @@ int main() {
       {"dma_irq", test_dma_irq},
       {"dma_dicr_clears_irq", test_dma_dicr_clears_irq},
       {"timer_irq_on_target", test_timer_irq_on_target},
+      {"timer_irq_single_shot", test_timer_irq_single_shot},
+      {"timer_irq_toggle_repeat", test_timer_irq_toggle_repeat},
+      {"timer_irq_repeat_no_toggle", test_timer_irq_repeat_no_toggle},
+      {"timer_mode_read_clears_flags", test_timer_mode_read_clears_flags},
+      {"timer0_clock_div8", test_timer0_clock_div8},
+      {"timer0_clock_dotclock", test_timer0_clock_dotclock},
+      {"timer2_clock_div32", test_timer2_clock_div32},
+      {"timer2_clock_div128", test_timer2_clock_div128},
       {"joypad_stub_ready", test_joypad_stub_ready},
       {"joypad_rx_ready_after_write", test_joypad_rx_ready_after_write},
+      {"joypad_dtr_gates_tx", test_joypad_dtr_gates_tx},
+      {"joypad_irq_rearm_on_istat_clear", test_joypad_irq_rearm_on_istat_clear},
       {"sio1_stub_ready", test_sio1_stub_ready},
       {"sio1_rx_ready_after_write", test_sio1_rx_ready_after_write},
       {"spu_status_tracks_ctrl", test_spu_status_tracks_ctrl},
@@ -1857,11 +2158,14 @@ int main() {
       {"cdrom_iso_read_mmio", test_cdrom_iso_read_mmio},
       {"cdrom_cue_read_mmio", test_cdrom_cue_read_mmio},
       {"cdrom_param_filter_roundtrip", test_cdrom_param_filter_roundtrip},
+      {"cdrom_cmd_delay_basic", test_cdrom_cmd_delay_basic},
       {"cdrom_loc_and_tracks", test_cdrom_loc_and_tracks},
       {"cdrom_seek_delay_irq", test_cdrom_seek_delay_irq},
       {"cdrom_getid_delay_irq", test_cdrom_getid_delay_irq},
       {"cdrom_toc_delay_irq", test_cdrom_toc_delay_irq},
       {"cdrom_irq_ack_overlapping", test_cdrom_irq_ack_overlapping},
+      {"cdrom_irq_ack_index1", test_cdrom_irq_ack_index1},
+      {"cdrom_irq_enable_gates_line", test_cdrom_irq_enable_gates_line},
       {"cdrom_status_transitions", test_cdrom_status_transitions},
       {"cdrom_read_irq_cadence", test_cdrom_read_irq_cadence},
       {"cdrom_whole_sector_mode1", test_cdrom_whole_sector_mode1},

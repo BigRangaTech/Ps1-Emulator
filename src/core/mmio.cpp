@@ -25,6 +25,12 @@ static constexpr uint16_t kJoyStatTxReady = 1u << 0;
 static constexpr uint16_t kJoyStatRxReady = 1u << 1;
 static constexpr uint16_t kJoyStatTxEmpty = 1u << 2;
 static constexpr uint16_t kJoyStatDsr = 1u << 7;
+static constexpr uint16_t kJoyCtrlTxEnable = 1u << 0;
+static constexpr uint16_t kJoyCtrlDtr = 1u << 1;
+static constexpr uint16_t kJoyCtrlRxEnable = 1u << 2;
+static constexpr uint16_t kJoyCtrlAckReset = 1u << 4;
+static constexpr uint16_t kJoyCtrlReset = 1u << 6;
+static constexpr uint16_t kJoyCtrlIrqEnable = 1u << 12;
 static constexpr uint32_t kSpuCtrlAddr = 0x1F801DAA;
 static constexpr uint32_t kSpuStatAddr = 0x1F801DAE;
 
@@ -97,6 +103,9 @@ void MmioBus::reset() {
   joy_irq_pending_ = false;
   joy_tx_queue_.clear();
   joy_tx_delay_cycles_ = 0;
+  joy_rx_delay_cycles_ = 0;
+  joy_ack_cycles_ = 0;
+  joy_rx_pending_ = false;
   joy_response_queue_.clear();
   joy_session_active_ = false;
   joy_phase_ = 0;
@@ -153,7 +162,7 @@ void MmioBus::reset_gpu_state() {
 }
 
 uint32_t MmioBus::compute_gpustat() const {
-  constexpr size_t kGpuFifoLimit = 32;
+  constexpr size_t kGpuFifoLimit = 16;
   uint32_t stat = 0;
   stat |= (gpu_texpage_x_ & 0xFu);
   stat |= (gpu_texpage_y_ & 0x1u) << 4;
@@ -203,15 +212,16 @@ uint32_t MmioBus::compute_gpustat() const {
     stat |= (1u << 24);
   }
 
-  bool ready_cmd = (gpu_gp0_fifo_.size() < kGpuFifoLimit) && (gpu_busy_cycles_ == 0);
+  bool fifo_space = gpu_gp0_fifo_.size() < kGpuFifoLimit;
+  bool ready_cmd = fifo_space;
   bool ready_vram_to_cpu = !gpu_read_fifo_.empty();
   bool ready_dma_block = true;
   switch (gpu_dma_dir_ & 0x3u) {
     case 1:
-      ready_dma_block = ready_cmd;
+      ready_dma_block = fifo_space;
       break;
     case 2:
-      ready_dma_block = ready_cmd;
+      ready_dma_block = fifo_space;
       break;
     case 3:
       ready_dma_block = ready_vram_to_cpu;
@@ -354,6 +364,15 @@ static bool irq_log_enabled() {
   return cached == 1;
 }
 
+static bool timer_log_enabled() {
+  static int cached = -1;
+  if (cached < 0) {
+    const char *env = std::getenv("PS1EMU_LOG_TIMERS");
+    cached = (env && env[0] != '\0' && env[0] != '0') ? 1 : 0;
+  }
+  return cached == 1;
+}
+
 static bool gpustat_log_enabled() {
   static int cached = -1;
   if (cached < 0) {
@@ -401,6 +420,9 @@ static uint32_t joy_byte_delay_cycles(uint16_t baud) {
   }
   return cycles;
 }
+
+static constexpr uint32_t kJoyRxDelayCycles = 64;
+static constexpr uint32_t kJoyAckPulseCycles = 96;
 
 void MmioBus::cdrom_push_response(uint8_t value) {
   cdrom_response_fifo_.push_back(value);
@@ -641,7 +663,7 @@ uint16_t MmioBus::joy_status() const {
   if (joy_rx_ready_) {
     status |= kJoyStatRxReady;
   }
-  if (joy_ack_) {
+  if ((joy_rx_ready_ || joy_ack_) && (joy_ctrl_ & kJoyCtrlDtr)) {
     status |= kJoyStatDsr;
   }
   return status;
@@ -707,19 +729,23 @@ void MmioBus::cdrom_execute_command(uint8_t cmd) {
     std::cerr << oss.str() << "\n";
   }
 
+  auto queue_response = [&](uint8_t irq_flags,
+                            std::vector<uint8_t> response,
+                            uint32_t delay_cycles = kCdromCmdDelayCycles,
+                            bool clear_seeking = false) {
+    cdrom_queue_response(delay_cycles, irq_flags, std::move(response), clear_seeking);
+  };
   auto queue_status = [&](uint8_t irq_flags, bool clear_seeking = false) {
-    cdrom_queue_response(kCdromCmdDelayCycles, irq_flags, {cdrom_status()}, clear_seeking);
+    queue_response(irq_flags, {cdrom_status()}, kCdromCmdDelayCycles, clear_seeking);
   };
 
   switch (cmd) {
     case 0x00: { // Sync
-      cdrom_push_response(cdrom_status());
-      cdrom_raise_irq(0x01);
+      queue_status(0x01);
       break;
     }
     case 0x01: { // Getstat
-      cdrom_push_response(cdrom_status());
-      cdrom_raise_irq(0x01);
+      queue_status(0x01);
       break;
     }
     case 0x02: { // Setloc
@@ -734,14 +760,12 @@ void MmioBus::cdrom_execute_command(uint8_t cmd) {
     case 0x03: { // Play
       cdrom_playing_ = true;
       cdrom_reading_ = false;
-      cdrom_push_response(cdrom_status());
-      cdrom_raise_irq(0x01);
+      queue_status(0x01);
       break;
     }
     case 0x04: // Forward
     case 0x05: { // Backward
-      cdrom_push_response(cdrom_status());
-      cdrom_raise_irq(0x01);
+      queue_status(0x01);
       break;
     }
     case 0x06: // ReadN
@@ -760,8 +784,7 @@ void MmioBus::cdrom_execute_command(uint8_t cmd) {
       break;
     }
     case 0x07: { // MotorOn
-      cdrom_push_response(cdrom_status());
-      cdrom_raise_irq(0x01);
+      queue_status(0x01);
       break;
     }
     case 0x08: { // Stop
@@ -769,8 +792,7 @@ void MmioBus::cdrom_execute_command(uint8_t cmd) {
       cdrom_playing_ = false;
       cdrom_read_timer_ = 0;
       cdrom_request_ &= static_cast<uint8_t>(~0x01u);
-      cdrom_push_response(cdrom_status());
-      cdrom_raise_irq(0x01);
+      queue_status(0x01);
       break;
     }
     case 0x09: { // Pause
@@ -778,8 +800,7 @@ void MmioBus::cdrom_execute_command(uint8_t cmd) {
       cdrom_playing_ = false;
       cdrom_read_timer_ = 0;
       cdrom_request_ &= static_cast<uint8_t>(~0x01u);
-      cdrom_push_response(cdrom_status());
-      cdrom_raise_irq(0x01);
+      queue_status(0x01);
       break;
     }
     case 0x0A: { // Init
@@ -795,20 +816,17 @@ void MmioBus::cdrom_execute_command(uint8_t cmd) {
       cdrom_read_timer_ = 0;
       cdrom_read_period_ = cdrom_read_period_cycles(cdrom_mode_);
       cdrom_pending_.clear();
-      cdrom_push_response(cdrom_status());
-      cdrom_raise_irq(0x01);
+      queue_status(0x01);
       break;
     }
     case 0x0B: { // Mute
       cdrom_muted_ = true;
-      cdrom_push_response(cdrom_status());
-      cdrom_raise_irq(0x01);
+      queue_status(0x01);
       break;
     }
     case 0x0C: { // Demute
       cdrom_muted_ = false;
-      cdrom_push_response(cdrom_status());
-      cdrom_raise_irq(0x01);
+      queue_status(0x01);
       break;
     }
     case 0x0D: { // Setfilter
@@ -816,8 +834,7 @@ void MmioBus::cdrom_execute_command(uint8_t cmd) {
         cdrom_filter_file_ = params[0];
         cdrom_filter_channel_ = params[1];
       }
-      cdrom_push_response(cdrom_status());
-      cdrom_raise_irq(0x01);
+      queue_status(0x01);
       break;
     }
     case 0x0E: { // Setmode
@@ -825,67 +842,71 @@ void MmioBus::cdrom_execute_command(uint8_t cmd) {
         cdrom_mode_ = params[0];
       }
       cdrom_read_period_ = cdrom_read_period_cycles(cdrom_mode_);
-      cdrom_push_response(cdrom_status());
-      cdrom_raise_irq(0x01);
+      queue_status(0x01);
       break;
     }
     case 0x0F: { // Getparam
-      cdrom_push_response(cdrom_status());
-      cdrom_push_response(cdrom_mode_);
-      cdrom_push_response(0x00);
-      cdrom_push_response(cdrom_filter_file_);
-      cdrom_push_response(cdrom_filter_channel_);
-      cdrom_raise_irq(0x01);
+      std::vector<uint8_t> response = {
+          cdrom_status(),
+          cdrom_mode_,
+          0x00,
+          cdrom_filter_file_,
+          cdrom_filter_channel_,
+      };
+      queue_response(0x01, std::move(response));
       break;
     }
     case 0x10: { // GetlocL
       uint8_t mm = 0, ss = 0, ff = 0;
       lba_to_bcd(cdrom_last_read_lba_, mm, ss, ff);
-      cdrom_push_response(cdrom_status());
-      cdrom_push_response(mm);
-      cdrom_push_response(ss);
-      cdrom_push_response(ff);
-      cdrom_push_response(cdrom_last_mode_);
-      cdrom_push_response(cdrom_last_file_);
-      cdrom_push_response(cdrom_last_channel_);
-      cdrom_push_response(cdrom_last_submode_);
-      cdrom_push_response(cdrom_last_coding_);
-      cdrom_raise_irq(0x01);
+      std::vector<uint8_t> response = {
+          cdrom_status(),
+          mm,
+          ss,
+          ff,
+          cdrom_last_mode_,
+          cdrom_last_file_,
+          cdrom_last_channel_,
+          cdrom_last_submode_,
+          cdrom_last_coding_,
+      };
+      queue_response(0x01, std::move(response));
       break;
     }
     case 0x11: { // GetlocP
       uint8_t mm = 0, ss = 0, ff = 0;
       lba_to_bcd(cdrom_last_read_lba_, mm, ss, ff);
-      cdrom_push_response(cdrom_status());
-      cdrom_push_response(0x01); // track
-      cdrom_push_response(0x01); // index
-      cdrom_push_response(mm);
-      cdrom_push_response(ss);
-      cdrom_push_response(ff);
-      cdrom_push_response(mm);
-      cdrom_push_response(ss);
-      cdrom_push_response(ff);
-      cdrom_raise_irq(0x01);
+      std::vector<uint8_t> response = {
+          cdrom_status(),
+          0x01,
+          0x01,
+          mm,
+          ss,
+          ff,
+          mm,
+          ss,
+          ff,
+      };
+      queue_response(0x01, std::move(response));
       break;
     }
     case 0x12: { // SetSession
       if (!params.empty()) {
         cdrom_session_ = params[0];
       }
-      cdrom_push_response(cdrom_status());
-      cdrom_raise_irq(0x01);
+      queue_status(0x01);
       break;
     }
     case 0x13: { // GetTN
-      cdrom_push_response(cdrom_status());
+      std::vector<uint8_t> response = {cdrom_status()};
       if (cdrom_image_.loaded()) {
-        cdrom_push_response(0x01);
-        cdrom_push_response(0x01);
+        response.push_back(0x01);
+        response.push_back(0x01);
       } else {
-        cdrom_push_response(0x00);
-        cdrom_push_response(0x00);
+        response.push_back(0x00);
+        response.push_back(0x00);
       }
-      cdrom_raise_irq(0x01);
+      queue_response(0x01, std::move(response));
       break;
     }
     case 0x14: { // GetTD
@@ -901,11 +922,8 @@ void MmioBus::cdrom_execute_command(uint8_t cmd) {
       }
       uint8_t mm = 0, ss = 0, ff = 0;
       lba_to_bcd(lba, mm, ss, ff);
-      cdrom_push_response(cdrom_status());
-      cdrom_push_response(mm);
-      cdrom_push_response(ss);
-      cdrom_push_response(ff);
-      cdrom_raise_irq(0x01);
+      std::vector<uint8_t> response = {cdrom_status(), mm, ss, ff};
+      queue_response(0x01, std::move(response));
       break;
     }
     case 0x15: // SeekL
@@ -922,34 +940,35 @@ void MmioBus::cdrom_execute_command(uint8_t cmd) {
       break;
     }
     case 0x17: { // SetClock
-      cdrom_push_response(cdrom_status());
-      cdrom_raise_irq(0x01);
+      queue_status(0x01);
       break;
     }
     case 0x18: { // GetClock
-      cdrom_push_response(cdrom_status());
-      cdrom_push_response(0x00);
-      cdrom_push_response(0x00);
-      cdrom_push_response(0x00);
-      cdrom_push_response(0x00);
-      cdrom_raise_irq(0x01);
+      std::vector<uint8_t> response = {
+          cdrom_status(),
+          0x00,
+          0x00,
+          0x00,
+          0x00,
+      };
+      queue_response(0x01, std::move(response));
       break;
     }
     case 0x19: { // Test
       uint8_t sub = params.empty() ? 0 : params[0];
-      cdrom_push_response(cdrom_status());
+      std::vector<uint8_t> response = {cdrom_status()};
       if (sub == 0x20) {
-        cdrom_push_response(0x98);
-        cdrom_push_response(0x06);
-        cdrom_push_response(0x19);
-        cdrom_push_response(0xC0);
+        response.push_back(0x98);
+        response.push_back(0x06);
+        response.push_back(0x19);
+        response.push_back(0xC0);
       } else {
-        cdrom_push_response(0x00);
-        cdrom_push_response(0x00);
-        cdrom_push_response(0x00);
-        cdrom_push_response(0x00);
+        response.push_back(0x00);
+        response.push_back(0x00);
+        response.push_back(0x00);
+        response.push_back(0x00);
       }
-      cdrom_raise_irq(0x01);
+      queue_response(0x01, std::move(response));
       break;
     }
     case 0x1A: { // GetID
@@ -984,17 +1003,18 @@ void MmioBus::cdrom_execute_command(uint8_t cmd) {
       cdrom_read_timer_ = 0;
       cdrom_read_period_ = cdrom_read_period_cycles(cdrom_mode_);
       cdrom_pending_.clear();
-      cdrom_push_response(cdrom_status());
-      cdrom_raise_irq(0x01);
+      queue_status(0x01);
       break;
     }
     case 0x1D: { // GetQ
-      cdrom_push_response(cdrom_status());
-      cdrom_push_response(0x00);
-      cdrom_push_response(0x00);
-      cdrom_push_response(0x00);
-      cdrom_push_response(0x00);
-      cdrom_raise_irq(0x01);
+      std::vector<uint8_t> response = {
+          cdrom_status(),
+          0x00,
+          0x00,
+          0x00,
+          0x00,
+      };
+      queue_response(0x01, std::move(response));
       break;
     }
     case 0x1E: { // ReadTOC
@@ -1020,8 +1040,7 @@ void MmioBus::cdrom_execute_command(uint8_t cmd) {
     }
     default: {
       cdrom_error_ = true;
-      cdrom_push_response(cdrom_status());
-      cdrom_raise_irq(0x10);
+      queue_response(0x10, {cdrom_status()});
       break;
     }
   }
@@ -1049,7 +1068,6 @@ uint8_t MmioBus::read8(uint32_t addr) {
       value = joy_rx_data_;
     }
     joy_rx_ready_ = !joy_response_queue_.empty();
-    joy_ack_ = joy_rx_ready_;
     if (!joy_rx_ready_ && joy_tx_queue_.empty() && joy_tx_delay_cycles_ == 0) {
       joy_session_active_ = false;
       joy_phase_ = 0;
@@ -1259,9 +1277,6 @@ uint16_t MmioBus::read16(uint32_t addr) {
       if (reg == 0x4) {
         uint16_t value = timer_mode_[timer];
         timer_mode_[timer] &= static_cast<uint16_t>(~((1u << 11) | (1u << 12)));
-        if (!timer_irq_toggle_[timer]) {
-          timer_mode_[timer] |= static_cast<uint16_t>(1u << 10);
-        }
         return value;
       }
       if (reg == 0x8) {
@@ -1307,11 +1322,6 @@ uint32_t MmioBus::read32(uint32_t addr) {
       if (reg == 0x4) {
         uint16_t value = timer_mode_[timer];
         timer_mode_[timer] &= static_cast<uint16_t>(~((1u << 11) | (1u << 12)));
-        if (!timer_irq_toggle_[timer]) {
-          timer_mode_[timer] |= static_cast<uint16_t>(1u << 10);
-        } else {
-          timer_mode_[timer] &= static_cast<uint16_t>(~(1u << 10));
-        }
         return value;
       }
       if (reg == 0x8) {
@@ -1450,9 +1460,6 @@ uint32_t MmioBus::read32(uint32_t addr) {
       if (reg == 0x4) {
         uint16_t value = timer_mode_[timer];
         timer_mode_[timer] &= static_cast<uint16_t>(~((1u << 11) | (1u << 12)));
-        if (!timer_irq_toggle_[timer]) {
-          timer_mode_[timer] |= static_cast<uint16_t>(1u << 10);
-        }
         return value;
       }
       if (reg == 0x8) {
@@ -1484,6 +1491,9 @@ void MmioBus::write8(uint32_t addr, uint8_t value) {
     uint16_t mask = (addr & 1) ? static_cast<uint16_t>(value) << 8
                                : static_cast<uint16_t>(value);
     irq_stat_ &= static_cast<uint16_t>(~mask);
+    if (mask & (1u << 7)) {
+      joy_irq_pending_ = false;
+    }
     return;
   }
   if (addr == 0x1F801074 || addr == 0x1F801075) { // I_MASK
@@ -1495,6 +1505,9 @@ void MmioBus::write8(uint32_t addr, uint8_t value) {
     return;
   }
   if (addr == kJoyData) {
+    if ((joy_ctrl_ & kJoyCtrlDtr) == 0 || (joy_ctrl_ & kJoyCtrlTxEnable) == 0) {
+      return;
+    }
     if (!joy_session_active_) {
       if (value == 0x01) {
         joy_device_ = 1; // pad
@@ -1554,35 +1567,89 @@ void MmioBus::write8(uint32_t addr, uint8_t value) {
     joy_mode_ = static_cast<uint16_t>((joy_mode_ & 0x00FFu) | (static_cast<uint16_t>(value) << 8));
   } else if (addr == kJoyCtrl) {
     joy_ctrl_ = static_cast<uint16_t>((joy_ctrl_ & 0xFF00u) | value);
-    if (joy_ctrl_ & 0x0010u) {
+    if (joy_ctrl_ & kJoyCtrlAckReset) {
       joy_irq_pending_ = false;
       irq_stat_ &= static_cast<uint16_t>(~(1u << 7));
+      joy_ack_ = false;
+      joy_ack_cycles_ = 0;
     }
-    if (joy_ctrl_ & 0x0040u) {
+    if (joy_ctrl_ & kJoyCtrlReset) {
       joy_rx_ready_ = false;
       joy_ack_ = false;
       joy_tx_queue_.clear();
       joy_tx_delay_cycles_ = 0;
+      joy_rx_delay_cycles_ = 0;
+      joy_ack_cycles_ = 0;
+      joy_rx_pending_ = false;
       joy_response_queue_.clear();
       joy_session_active_ = false;
       joy_phase_ = 0;
       joy_device_ = 0;
+    }
+    if ((joy_ctrl_ & kJoyCtrlDtr) == 0) {
+      joy_rx_ready_ = false;
+      joy_ack_ = false;
+      joy_tx_queue_.clear();
+      joy_tx_delay_cycles_ = 0;
+      joy_rx_delay_cycles_ = 0;
+      joy_ack_cycles_ = 0;
+      joy_rx_pending_ = false;
+      joy_response_queue_.clear();
+      joy_session_active_ = false;
+      joy_phase_ = 0;
+      joy_device_ = 0;
+    }
+    if ((joy_ctrl_ & kJoyCtrlDtr) && !joy_rx_ready_ && !joy_response_queue_.empty()) {
+      joy_rx_ready_ = true;
+      joy_ack_ = true;
+      joy_ack_cycles_ = kJoyAckPulseCycles;
+      if ((joy_ctrl_ & kJoyCtrlIrqEnable) && !joy_irq_pending_) {
+        joy_irq_pending_ = true;
+        irq_stat_ |= static_cast<uint16_t>(1u << 7);
+      }
     }
   } else if (addr == kJoyCtrl + 1) {
     joy_ctrl_ = static_cast<uint16_t>((joy_ctrl_ & 0x00FFu) | (static_cast<uint16_t>(value) << 8));
-    if (joy_ctrl_ & 0x0010u) {
+    if (joy_ctrl_ & kJoyCtrlAckReset) {
       joy_irq_pending_ = false;
       irq_stat_ &= static_cast<uint16_t>(~(1u << 7));
+      joy_ack_ = false;
+      joy_ack_cycles_ = 0;
     }
-    if (joy_ctrl_ & 0x0040u) {
+    if (joy_ctrl_ & kJoyCtrlReset) {
       joy_rx_ready_ = false;
       joy_ack_ = false;
       joy_tx_queue_.clear();
       joy_tx_delay_cycles_ = 0;
+      joy_rx_delay_cycles_ = 0;
+      joy_ack_cycles_ = 0;
+      joy_rx_pending_ = false;
       joy_response_queue_.clear();
       joy_session_active_ = false;
       joy_phase_ = 0;
       joy_device_ = 0;
+    }
+    if ((joy_ctrl_ & kJoyCtrlDtr) == 0) {
+      joy_rx_ready_ = false;
+      joy_ack_ = false;
+      joy_tx_queue_.clear();
+      joy_tx_delay_cycles_ = 0;
+      joy_rx_delay_cycles_ = 0;
+      joy_ack_cycles_ = 0;
+      joy_rx_pending_ = false;
+      joy_response_queue_.clear();
+      joy_session_active_ = false;
+      joy_phase_ = 0;
+      joy_device_ = 0;
+    }
+    if ((joy_ctrl_ & kJoyCtrlDtr) && !joy_rx_ready_ && !joy_response_queue_.empty()) {
+      joy_rx_ready_ = true;
+      joy_ack_ = true;
+      joy_ack_cycles_ = kJoyAckPulseCycles;
+      if ((joy_ctrl_ & kJoyCtrlIrqEnable) && !joy_irq_pending_) {
+        joy_irq_pending_ = true;
+        irq_stat_ |= static_cast<uint16_t>(1u << 7);
+      }
     }
   } else if (addr == kJoyBaud) {
     joy_baud_ = static_cast<uint16_t>((joy_baud_ & 0xFF00u) | value);
@@ -1639,7 +1706,14 @@ void MmioBus::write8(uint32_t addr, uint8_t value) {
           cdrom_param_fifo_.push_back(value);
           break;
         case 1:
-          cdrom_set_irq_enable(value);
+          if (value) {
+            cdrom_irq_flags_ &= static_cast<uint8_t>(~(value & 0x1Fu));
+            if (cdrom_irq_flags_ == 0 && !cdrom_irq_queue_.empty()) {
+              cdrom_irq_flags_ = cdrom_irq_queue_.front();
+              cdrom_irq_queue_.pop_front();
+            }
+            cdrom_update_irq_line();
+          }
           break;
         case 2:
           cdrom_vol_lr_ = value;
@@ -1658,9 +1732,6 @@ void MmioBus::write8(uint32_t addr, uint8_t value) {
           }
         } else if ((cdrom_index_ & 0x3u) >= 2) {
           cdrom_vol_apply_ = value;
-        }
-        if ((cdrom_index_ & 0x3u) <= 1) {
-          cdrom_set_irq_enable(bits);
         }
       } else {
         uint8_t ack = bits;
@@ -1693,6 +1764,9 @@ void MmioBus::write16(uint32_t addr, uint16_t value) {
                 << value << "\n";
     }
     irq_stat_ &= static_cast<uint16_t>(~value);
+    if (value & (1u << 7)) {
+      joy_irq_pending_ = false;
+    }
     return;
   }
   if (addr == 0x1F801074) { // I_MASK
@@ -1712,19 +1786,46 @@ void MmioBus::write16(uint32_t addr, uint16_t value) {
     joy_mode_ = value;
   } else if (addr == kJoyCtrl) {
     joy_ctrl_ = value;
-    if (joy_ctrl_ & 0x0010u) {
+    if (joy_ctrl_ & kJoyCtrlAckReset) {
       joy_irq_pending_ = false;
       irq_stat_ &= static_cast<uint16_t>(~(1u << 7));
+      joy_ack_ = false;
+      joy_ack_cycles_ = 0;
     }
-    if (joy_ctrl_ & 0x0040u) {
+    if (joy_ctrl_ & kJoyCtrlReset) {
       joy_rx_ready_ = false;
       joy_ack_ = false;
       joy_tx_queue_.clear();
       joy_tx_delay_cycles_ = 0;
+      joy_rx_delay_cycles_ = 0;
+      joy_ack_cycles_ = 0;
+      joy_rx_pending_ = false;
       joy_response_queue_.clear();
       joy_session_active_ = false;
       joy_phase_ = 0;
       joy_device_ = 0;
+    }
+    if ((joy_ctrl_ & kJoyCtrlDtr) == 0) {
+      joy_rx_ready_ = false;
+      joy_ack_ = false;
+      joy_tx_queue_.clear();
+      joy_tx_delay_cycles_ = 0;
+      joy_rx_delay_cycles_ = 0;
+      joy_ack_cycles_ = 0;
+      joy_rx_pending_ = false;
+      joy_response_queue_.clear();
+      joy_session_active_ = false;
+      joy_phase_ = 0;
+      joy_device_ = 0;
+    }
+    if ((joy_ctrl_ & kJoyCtrlDtr) && !joy_rx_ready_ && !joy_response_queue_.empty()) {
+      joy_rx_ready_ = true;
+      joy_ack_ = true;
+      joy_ack_cycles_ = kJoyAckPulseCycles;
+      if ((joy_ctrl_ & kJoyCtrlIrqEnable) && !joy_irq_pending_) {
+        joy_irq_pending_ = true;
+        irq_stat_ |= static_cast<uint16_t>(1u << 7);
+      }
     }
   } else if (addr == kJoyBaud) {
     joy_baud_ = value;
@@ -1797,6 +1898,9 @@ void MmioBus::write16(uint32_t addr, uint16_t value) {
                 << value << "\n";
     }
     irq_stat_ &= static_cast<uint16_t>(~value);
+    if (value & (1u << 7)) {
+      joy_irq_pending_ = false;
+    }
   } else if (addr == 0x1F801074) { // I_MASK
     if (irq_log_enabled()) {
       std::cerr << "[irq] I_MASK=0x" << std::hex << std::setw(4) << std::setfill('0')
@@ -1827,6 +1931,9 @@ void MmioBus::write32(uint32_t addr, uint32_t value) {
 
   if (addr == 0x1F801070) { // I_STAT
     irq_stat_ &= static_cast<uint16_t>(~value);
+    if (value & (1u << 7)) {
+      joy_irq_pending_ = false;
+    }
   } else if (addr == 0x1F801074) { // I_MASK
     irq_mask_ = static_cast<uint16_t>(value);
   }
@@ -2136,18 +2243,38 @@ void MmioBus::tick(uint32_t cycles) {
     }
   }
 
+  auto div_ticks = [&](int idx, uint32_t add, uint32_t div) -> uint32_t {
+    if (div == 0) {
+      return 0;
+    }
+    timer_cycle_accum_[idx] += add;
+    uint32_t ticks = timer_cycle_accum_[idx] / div;
+    timer_cycle_accum_[idx] %= div;
+    return ticks;
+  };
+
   for (int i = 0; i < 3; ++i) {
     uint32_t before = timer_count_[i];
     uint16_t mode = timer_mode_[i];
     uint32_t clock = (mode >> 8) & 0x3u;
     uint32_t ticks = 0;
     if (i == 2) {
-      if (clock & 0x1u) {
-        timer_cycle_accum_[i] += cycles;
-        ticks = timer_cycle_accum_[i] / 8;
-        timer_cycle_accum_[i] %= 8;
-      } else {
-        ticks = cycles;
+      switch (clock) {
+        case 0:
+          ticks = cycles;
+          break;
+        case 1:
+          ticks = div_ticks(i, cycles, 8);
+          break;
+        case 2:
+          ticks = div_ticks(i, cycles, 32);
+          break;
+        case 3:
+          ticks = div_ticks(i, cycles, 128);
+          break;
+        default:
+          ticks = cycles;
+          break;
       }
     } else if (i == 1) {
       switch (clock) {
@@ -2158,14 +2285,10 @@ void MmioBus::tick(uint32_t cycles) {
           ticks = hblank_pulses;
           break;
         case 2:
-          timer_cycle_accum_[i] += cycles;
-          ticks = timer_cycle_accum_[i] / 8;
-          timer_cycle_accum_[i] %= 8;
+          ticks = div_ticks(i, cycles, 8);
           break;
         case 3:
-          timer_cycle_accum_[i] += hblank_pulses;
-          ticks = timer_cycle_accum_[i] / 8;
-          timer_cycle_accum_[i] %= 8;
+          ticks = div_ticks(i, hblank_pulses, 8);
           break;
         default:
           ticks = cycles;
@@ -2177,17 +2300,13 @@ void MmioBus::tick(uint32_t cycles) {
           ticks = cycles;
           break;
         case 1:
-          timer_cycle_accum_[i] += cycles;
-          ticks = timer_cycle_accum_[i] / 8;
-          timer_cycle_accum_[i] %= 8;
-          break;
-        case 2:
           ticks = cycles;
           break;
+        case 2:
+          ticks = div_ticks(i, cycles, 8);
+          break;
         case 3:
-          timer_cycle_accum_[i] += cycles;
-          ticks = timer_cycle_accum_[i] / 8;
-          timer_cycle_accum_[i] %= 8;
+          ticks = div_ticks(i, cycles, 8);
           break;
         default:
           ticks = cycles;
@@ -2243,33 +2362,41 @@ void MmioBus::tick(uint32_t cycles) {
     if (ticks > 0 && target != 0 && before < target && full >= target && full <= 0x1FFFFu) {
       timer_mode_[i] |= static_cast<uint16_t>(1u << 11);
       if (timer_irq_enable_[i] && timer_irq_on_target_[i]) {
-        irq_stat_ |= static_cast<uint16_t>(1u << (4 + i));
+        bool fire = true;
         if (timer_irq_toggle_[i]) {
           timer_mode_[i] ^= static_cast<uint16_t>(1u << 10);
+          fire = (timer_mode_[i] & (1u << 10)) == 0;
         } else {
           timer_mode_[i] &= static_cast<uint16_t>(~(1u << 10));
+        }
+        if (fire) {
+          irq_stat_ |= static_cast<uint16_t>(1u << (4 + i));
+        }
+        if (!timer_irq_repeat_[i]) {
+          timer_irq_enable_[i] = false;
         }
       }
       if (mode & (1u << 3)) { // reset on target
         timer_count_[i] = 0;
         timer_cycle_accum_[i] = 0;
       }
-      if (!timer_irq_repeat_[i]) {
-        timer_irq_enable_[i] = false;
-      }
     }
     if (full > 0xFFFFu) {
       timer_mode_[i] |= static_cast<uint16_t>(1u << 12);
       if (timer_irq_on_overflow_[i] && timer_irq_enable_[i]) {
-        irq_stat_ |= static_cast<uint16_t>(1u << (4 + i));
+        bool fire = true;
         if (timer_irq_toggle_[i]) {
           timer_mode_[i] ^= static_cast<uint16_t>(1u << 10);
+          fire = (timer_mode_[i] & (1u << 10)) == 0;
         } else {
           timer_mode_[i] &= static_cast<uint16_t>(~(1u << 10));
         }
-      }
-      if (!timer_irq_repeat_[i]) {
-        timer_irq_enable_[i] = false;
+        if (fire) {
+          irq_stat_ |= static_cast<uint16_t>(1u << (4 + i));
+        }
+        if (!timer_irq_repeat_[i]) {
+          timer_irq_enable_[i] = false;
+        }
       }
     }
   }
@@ -2296,26 +2423,61 @@ void MmioBus::tick(uint32_t cycles) {
     }
   }
 
-  if (joy_tx_delay_cycles_ > 0) {
-    if (joy_tx_delay_cycles_ > cycles) {
-      joy_tx_delay_cycles_ -= cycles;
+  if (joy_ack_cycles_ > 0) {
+    if (joy_ack_cycles_ > cycles) {
+      joy_ack_cycles_ -= cycles;
     } else {
-      joy_tx_delay_cycles_ = 0;
+      joy_ack_cycles_ = 0;
+      joy_ack_ = false;
     }
   }
-  while (joy_tx_delay_cycles_ == 0 && !joy_tx_queue_.empty()) {
+
+  auto deliver_joy_response = [&]() {
     uint8_t response = joy_tx_queue_.front();
     joy_tx_queue_.pop_front();
     joy_response_queue_.push_back(response);
-    joy_rx_ready_ = true;
-    joy_ack_ = true;
-    if ((joy_ctrl_ & 0x1000u) && !joy_irq_pending_) {
-      joy_irq_pending_ = true;
-      irq_stat_ |= static_cast<uint16_t>(1u << 7);
+    if (joy_ctrl_ & kJoyCtrlDtr) {
+      joy_rx_ready_ = true;
+      joy_ack_ = true;
+      joy_ack_cycles_ = kJoyAckPulseCycles;
+      if ((joy_ctrl_ & kJoyCtrlIrqEnable) && !joy_irq_pending_) {
+        joy_irq_pending_ = true;
+        irq_stat_ |= static_cast<uint16_t>(1u << 7);
+      }
     }
-    if (!joy_tx_queue_.empty()) {
-      joy_tx_delay_cycles_ = joy_byte_delay_cycles(joy_baud_);
+    joy_rx_pending_ = false;
+  };
+
+  uint32_t joy_remaining = cycles;
+  while (joy_remaining > 0) {
+    if (joy_tx_delay_cycles_ > 0) {
+      uint32_t delta = std::min(joy_tx_delay_cycles_, joy_remaining);
+      joy_tx_delay_cycles_ -= delta;
+      joy_remaining -= delta;
+      if (joy_tx_delay_cycles_ > 0) {
+        break;
+      }
     }
+    if (!joy_rx_pending_ && !joy_tx_queue_.empty()) {
+      joy_rx_pending_ = true;
+      joy_rx_delay_cycles_ = kJoyRxDelayCycles;
+    }
+    if (joy_rx_pending_ && joy_rx_delay_cycles_ > 0) {
+      uint32_t delta = std::min(joy_rx_delay_cycles_, joy_remaining);
+      joy_rx_delay_cycles_ -= delta;
+      joy_remaining -= delta;
+      if (joy_rx_delay_cycles_ > 0) {
+        break;
+      }
+    }
+    if (joy_rx_pending_ && joy_rx_delay_cycles_ == 0 && !joy_tx_queue_.empty()) {
+      deliver_joy_response();
+      if (!joy_tx_queue_.empty()) {
+        joy_tx_delay_cycles_ = joy_byte_delay_cycles(joy_baud_);
+        continue;
+      }
+    }
+    break;
   }
 
   if (vblank_pulse) {
@@ -2323,6 +2485,19 @@ void MmioBus::tick(uint32_t cycles) {
     if (irq_log_enabled()) {
       std::cerr << "[irq] VBLANK irq_stat=0x" << std::hex << std::setw(4) << std::setfill('0')
                 << irq_stat_ << "\n";
+    }
+  }
+
+  if (timer_log_enabled()) {
+    static uint32_t timer_log_accum = 0;
+    timer_log_accum += cycles;
+    constexpr uint32_t kTimerLogPeriod = 200000;
+    if (timer_log_accum >= kTimerLogPeriod) {
+      timer_log_accum %= kTimerLogPeriod;
+      std::cerr << "[timer] counts T0=0x" << std::hex << std::setw(4) << std::setfill('0')
+                << timer_count_[0]
+                << " T1=0x" << std::setw(4) << timer_count_[1]
+                << " T2=0x" << std::setw(4) << timer_count_[2] << "\n";
     }
   }
 }
